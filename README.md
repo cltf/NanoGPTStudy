@@ -29,13 +29,18 @@
 
 ---
 
+## 在线阅读
+
+站点：[https://cltf.github.io/NanoGPTStudy/](https://cltf.github.io/NanoGPTStudy/)  
+封面右下角二维码可扫码直达。
+
 ## 本地阅读
 
 用浏览器直接打开即可（样式已内置在本书目录，可独立阅读）：
 
 | 入口 | 说明 |
 |------|------|
-| [`cover.html`](cover.html) | 封面页 |
+| [`cover.html`](cover.html) | 封面页（含在线阅读二维码） |
 | [`index.html`](index.html) | 总目录（含作者介绍与小节导航） |
 | [`ch01.html`](ch01.html) ~ [`ch05.html`](ch05.html) | 五章正文 |
 | [`practice.html`](practice.html) | 附录：本机实战过程 |

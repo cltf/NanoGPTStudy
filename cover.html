@@ -238,24 +238,35 @@
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      gap: 0.25rem;
-    }
-    .res .icon {
-      display: inline-grid;
-      place-items: center;
-      width: 1.55rem;
-      height: 1.55rem;
-      border: 1.5px solid var(--orange);
-      border-radius: 0.35rem;
-      color: var(--orange-deep);
-      font-size: 0.85rem;
-      margin-bottom: 0.2rem;
+      gap: 0.35rem;
     }
     .res strong {
       display: block;
       color: var(--ink);
       font-size: 0.74rem;
-      margin-bottom: 0.1rem;
+      margin-bottom: 0.05rem;
+    }
+    .res .qr {
+      display: block;
+      width: 4.35rem;
+      height: 4.35rem;
+      border: 1.5px solid var(--orange);
+      border-radius: 0.35rem;
+      padding: 0.18rem;
+      background: #fff;
+      line-height: 0;
+      text-decoration: none;
+    }
+    .res .qr img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+    .res .qr-hint {
+      font-size: 0.58rem;
+      color: var(--muted);
+      letter-spacing: 0.01em;
     }
     @media print {
       body { background: #fff; padding: 0; }
@@ -309,10 +320,11 @@
           </ul>
         </div>
         <div class="res">
-          <div class="icon" aria-hidden="true">▣</div>
-          <strong>配套学习资源</strong>
-          HTML 章节笔记<br />
-          小节导航 · 实战附录
+          <strong>扫码在线阅读</strong>
+          <a class="qr" href="https://cltf.github.io/NanoGPTStudy/" target="_blank" rel="noopener noreferrer" title="打开在线阅读站点">
+            <img src="images/qr-site.png" alt="二维码：跳转大模型训练入门在线站点" width="280" height="280" />
+          </a>
+          <span class="qr-hint">cltf.github.io/NanoGPTStudy</span>
         </div>
       </footer>
     </article>
