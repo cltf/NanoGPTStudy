@@ -606,7 +606,7 @@ y = data[i+1 : i+1+block_size]   # 标签 = 右移 1 位</code></pre>
         <h3><span class="n">①</span>logits 是什么</h3>
         <p>模型最后输出一堆<strong>没有范围限制的原始分数</strong>，就叫 logits。</p>
         <p>你这个 NanoGPT 莎士比亚字符版，词表一共 <strong>65</strong> 个字符（<a href="#vocab-65">完整列表见上方</a>），所以每次输出 <strong>65 个分数</strong>。</p>
-        <p class="takeaway">这些分数不是概率！可以是正数、负数、大或小，没法直接理解成「可能性」。</p>
+        <p class="takeaway">这些分数不是概率！可以是正数、负数、大或小，没法直接理解成「可能性」。也<strong>不是 Softmax 算出来的</strong>——Softmax 只消费 logits；分数本身由后面的线性层 <code>lm_head</code> 产生（见下节）。</p>
         <div class="example-box">
           <span class="caption">示例（示意数字，不是某次真实打印）</span>
           logits = [2.3, 0.1, -1.2, ...] 一共 65 个数字<br>

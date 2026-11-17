@@ -699,7 +699,18 @@ self.c_proj  # 压回 n_embd</code></pre>
     <h2 id="s2-6">2.6 lm_head：向量 → 65 个分数</h2>
     <pre><code>logits = self.lm_head(x)   # (B, T, vocab_size)
 loss = F.cross_entropy(...)</code></pre>
-    <p>每个位置输出 65 维 <code>logits</code>，再进入第1章的 Softmax 与 Cross-Entropy。</p>
+    <p>每个位置输出 65 维 <code>logits</code>，再进入下一节 Softmax 与第1章的 Cross-Entropy。</p>
+    <p class="takeaway" style="border-left:4px solid var(--accent);padding:0.55rem 0.75rem;background:#f0fdfa;border-radius:0 8px 8px 0">一句话：<strong>logits 就是这里算出来的</strong>——不是 Softmax 产生的。Softmax 只消费这些分数，把它们收成概率。</p>
+
+    <div class="math">$$\mathrm{logits}=x\,W^{\top},\quad z_i=x\cdot W_i$$</div>
+    <dl>
+      <dt>$x$</dt>
+      <dd>该位置隐向量，形状 $(n_{embd},)$；你训练轻量版是 $128$ 维</dd>
+      <dt>$W$</dt>
+      <dd><code>lm_head</code> 权重，形状 $(65,\ 128)$；训练会更新</dd>
+      <dt>$z_i$</dt>
+      <dd>第 $i$ 个字符的原始分数 = $x$ 与第 $i$ 行权重的<strong>点积</strong>（可正可负、可大可小）</dd>
+    </dl>
 
     <div class="card tip" id="lm-head-plain">
       <div class="label">通俗版：阅卷老师打分</div>
@@ -715,7 +726,7 @@ loss = F.cross_entropy(...)</code></pre>
 
       <ul style="margin:0 0 0.75rem;padding-left:1.2rem">
         <li><strong>为什么是 65？</strong>词表就 65 个字符，老师要对每个可能的「下一字」都打分，一个都不能少。</li>
-        <li><strong>怎么从 128 维变成 65 分？</strong>一次线性变换（矩阵乘法）：用 65 把「尺子」去量这叠笔记，每把尺子量出一个分数。公式就是第1章写的 $\mathrm{logits}=x W^{\top}$。</li>
+        <li><strong>怎么从 128 维变成 65 分？</strong>一次线性变换（矩阵乘法）：用 65 把「尺子」去量这叠笔记，每把尺子量出一个分数。公式就是上面的 $\mathrm{logits}=x W^{\top}$。</li>
         <li><strong>接下来呢？</strong>Softmax 把分数收成 0~1 的概率；再和标准答案比，用 Cross-Entropy 算 loss——「正确答案那个字，你给的概率够不够大」。</li>
       </ul>
 
@@ -767,7 +778,7 @@ loss = F.cross_entropy(...)</code></pre>
     <div class="math">$$\boldsymbol{\sigma}(\boldsymbol{z})_i = \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}$$</div>
     <dl>
       <dt>$\boldsymbol{z}$</dt>
-      <dd>输入，就是 <strong>logits</strong>：一组可正可负、可大可小的原始分数</dd>
+      <dd>输入，就是 <strong>logits</strong>：一组可正可负、可大可小的原始分数。<strong>它们来自上一节 <code>lm_head</code></strong>（$\mathrm{logits}=x W^{\top}$），不是 Softmax 算出来的；Softmax 只负责把现成分数收成概率。详见 <a href="ch01.html#s1-3">第1章 · logits 怎么算</a> 与 <a href="#s2-6">2.6 lm_head</a>。</dd>
       <dt>$K$</dt>
       <dd>候选总数。NanoGPT 字符版 $K=65$（词表 65 个字符）</dd>
       <dt>$e^{z_i}$</dt>
@@ -795,6 +806,16 @@ loss = F.cross_entropy(...)</code></pre>
         <span>手算例子 + 两个重要特性 + 工程细节</span>
       </div>
       <div class="deep-dive-body">
+
+        <h3><span class="n">⓪</span>先分清：谁产生分数，谁变成概率</h3>
+        <div class="example-box">
+          <span class="caption">分工</span>
+          隐向量 $x$（如 128 维）<br>
+          → <code>lm_head</code>：$\mathrm{logits}=x W^{\top}$ → 得到 $z$（65 个原始分数）<br>
+          → <strong>Softmax</strong>：把 $z$ 变成总和为 1 的概率<br>
+          → Cross-Entropy：看正确答案的概率够不够大
+        </div>
+        <p class="muted">下面手算例子里的 $z=[2,1,0]$，可以当成「某次 <code>lm_head</code> 已经打完分」之后的输入。</p>
 
         <h3><span class="n">①</span>手工例子（$K=3$）</h3>
         <p>假设 logits：$z=[2,\ 1,\ 0]$</p>
