@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>本机实战过程总结 · 大模型训练入门</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false},{left:'$',right:'$',display:false}]})"></script>
+  <style>
+:root {
+  --llm-bg: #f6f7f9;
+  --llm-sidebar: #f6f7f9;
+  --llm-ink: #15202b;
+  --llm-muted: #6b7785;
+  --llm-line: #e2e6eb;
+  --llm-active-bg: #e8eef3;
+  --llm-accent: #3db8a9;
+  --llm-accent-ink: #0d3d38;
+}
+body.llm-book {
+  background: var(--llm-bg) !important;
+  color: var(--llm-ink);
+  font-size: 17px;
+  line-height: 1.75;
+}
+body.llm-book a { color: #0f5c54; }
+body.llm-book a:hover { color: var(--llm-ink); }
+.llm-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.llm-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 1.25rem 1rem 1.5rem;
+  border-right: 1px solid var(--llm-line);
+  background: var(--llm-sidebar);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.llm-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--llm-muted) !important;
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+.llm-back:hover { color: var(--llm-ink) !important; }
+.llm-toc-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--llm-muted);
+  letter-spacing: 0.06em;
+  margin: 0.35rem 0 0.15rem;
+}
+.llm-chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.llm-chapters a {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.55rem;
+  align-items: baseline;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--llm-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  border-left: 3px solid transparent;
+}
+.llm-chapters a:hover {
+  background: rgba(0,0,0,0.03);
+  color: var(--llm-ink);
+}
+.llm-chapters a.active {
+  background: var(--llm-active-bg);
+  color: var(--llm-ink);
+  font-weight: 600;
+  border-left-color: var(--llm-accent);
+}
+.llm-chapters .num {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: inherit;
+  opacity: 0.85;
+}
+.llm-sec-toc {
+  list-style: none;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0 0 0 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.llm-sec-toc a {
+  display: block;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--llm-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.llm-sec-toc a:hover {
+  background: rgba(0,0,0,0.03);
+  color: var(--llm-ink);
+}
+.llm-side-foot {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--llm-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.llm-side-foot a {
+  color: var(--llm-muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+.llm-side-foot a:hover { color: var(--llm-ink); }
+.llm-main { min-width: 0; display: flex; flex-direction: column; }
+.llm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 2rem;
+  border-bottom: 1px solid var(--llm-line);
+  background: rgba(246,247,249,0.92);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.llm-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-decoration: none;
+  color: var(--llm-ink);
+  font-weight: 650;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+.llm-brand-mark {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 6px;
+  background: #15202b;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.llm-top-links { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+.llm-top-links a {
+  color: var(--llm-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.llm-top-links a:hover { color: var(--llm-ink); }
+.llm-article {
+  width: min(760px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 1.75rem 0 4rem;
+}
+.llm-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  color: var(--llm-muted);
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+}
+.llm-chapter-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+.llm-chapter-num {
+  flex: 0 0 auto;
+  min-width: 2.4rem;
+  height: 2.4rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  background: var(--llm-accent);
+  color: var(--llm-accent-ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.llm-chapter-head h1 {
+  margin: 0;
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  border: none;
+  padding: 0;
+  letter-spacing: -0.03em;
+}
+.llm-content .lead { margin-top: 0; }
+.llm-content h2 {
+  border-top: none;
+  padding-top: 0.2rem;
+  margin-top: 2.2rem;
+  scroll-margin-top: 5rem;
+}
+.llm-content h2::before {
+  content: "";
+  display: block;
+  width: 2rem;
+  height: 3px;
+  background: var(--llm-accent);
+  margin-bottom: 0.75rem;
+  border-radius: 2px;
+}
+.llm-onpage {
+  margin: 1rem 0 1.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--llm-line);
+}
+.llm-onpage .label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--llm-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.45rem;
+}
+.llm-onpage ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.llm-onpage a { text-decoration: none; }
+.llm-footer-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--llm-line);
+}
+.llm-footer-nav a {
+  text-decoration: none;
+  color: var(--llm-ink);
+  font-weight: 600;
+}
+@media (max-width: 920px) {
+  .llm-shell { grid-template-columns: 1fr; }
+  .llm-sidebar {
+    position: static;
+    height: auto;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--llm-line);
+  }
+  .llm-article { width: min(760px, calc(100% - 2rem)); }
+  .llm-topbar { padding: 0.85rem 1rem; }
+}
+</style>
+</head>
+<body class="llm-book">
+  <div class="llm-shell">
+    <aside class="llm-sidebar" aria-label="目录">
+      <a class="llm-back" href="index.html">← 返回目录</a>
+      <div class="llm-toc-label">目录</div>
+      <ul class="llm-chapters">
+        <li><a href="ch01.html"><span class="num">01</span><span>下一个字符与 Loss</span></a></li>
+        <li><a href="ch02.html"><span class="num">02</span><span>模型前向结构</span></a></li>
+        <li><a href="ch03.html"><span class="num">03</span><span>梯度与优化器</span></a></li>
+        <li><a href="ch04.html"><span class="num">04</span><span>train.py 整圈对照</span></a></li>
+        <li><a href="ch05.html"><span class="num">05</span><span>采样与曲线解读</span></a></li>
+        <li><a href="practice.html" class="active"><span class="num">附</span><span>实战记录</span></a></li>
+        <ul class="llm-sec-toc"><li><a href="#p0">A.1 环境准备（踩过的坑）</a></li><li><a href="#p1">A.2 数据：莎士比亚字符级</a></li><li><a href="#p2">A.3 第一轮训练：轻量版 v1</a></li><li><a href="#p3">A.4 第二轮训练：加强版 v2</a></li><li><a href="#p4">A.5 怎么用训好的模型</a></li><li><a href="#p5">A.6 实战时间线</a></li><li><a href="#p6">A.7 和五章理论的对照</a></li><li><a href="#p7">A.8 一句话结论</a></li></ul>
+      </ul>
+      <div class="llm-side-foot">
+        <a href="index.html">总目录</a>
+        <a href="cover.html">封面</a>
+      </div>
+    </aside>
+    <div class="llm-main">
+      <header class="llm-topbar">
+        <a class="llm-brand" href="index.html">
+          <span class="llm-brand-mark">LLM</span>
+          大模型训练入门
+        </a>
+        <div class="llm-top-links">
+          <a href="index.html">目录</a>
+          <a href="practice.html">实战</a>
+        </div>
+      </header>
+      <article class="llm-article">
+        <div class="llm-meta">
+          <div>大模型训练入门 · 基于 nanoGPT</div>
+        </div>
+        <div class="llm-chapter-head">
+          <div class="llm-chapter-num">附</div>
+          <h1>本机实战过程总结</h1>
+        </div>
+        <p class="lead">按真实操作顺序记录环境、数据、两轮训练、画曲线与采样，便于复现。</p>
+        
+        <nav class="llm-onpage" aria-label="本章小节">
+          <div class="label">本章小节</div>
+          <ul>
+      <li><a href="#p0">A.1 环境准备（踩过的坑）</a></li>
+      <li><a href="#p1">A.2 数据：莎士比亚字符级</a></li>
+      <li><a href="#p2">A.3 第一轮训练：轻量版 v1</a></li>
+      <li><a href="#p3">A.4 第二轮训练：加强版 v2</a></li>
+      <li><a href="#p4">A.5 怎么用训好的模型</a></li>
+      <li><a href="#p5">A.6 实战时间线</a></li>
+      <li><a href="#p6">A.7 和五章理论的对照</a></li>
+      <li><a href="#p7">A.8 一句话结论</a></li>
+          </ul>
+        </nav>
+        <div class="llm-content">
+
+<div class="card tip">
+  <div class="label">附录导读</div>
+  <p style="margin:0">本附录保留完整本机实战记录：环境坑、数据准备、轻量 v1 / 加强 v2、采样与时间线，并和五章理论对照。它是「可复现实验手册」，建议与各章交叉阅读。</p>
+</div>
+
+<div class="card tip">
+      <div class="label">工程根目录</div>
+      <pre style="margin:0"><code>~/大模型训练/nanoGPT
+仓库：https://github.com/karpathy/nanoGPT</code></pre>
+    </div>
+
+    <h2 id="p0">A.1 环境准备（踩过的坑）</h2>
+    <ul>
+      <li>本机 <code>python3.11</code> 建虚拟环境</li>
+      <li>Apple Silicon 训练设备用 <code>--device=mps</code>；<code>torch.compile</code> 在 MPS 上不稳 → 一律 <code>--compile=False</code></li>
+    </ul>
+    <pre><code>cd "~/大模型训练"
+git clone https://github.com/karpathy/nanoGPT.git
+cd nanoGPT
+~/.local/bin/python3.11 -m venv .venv
+source .venv/bin/activate
+pip install torch numpy transformers datasets tiktoken wandb tqdm matplotlib</code></pre>
+
+    <h2 id="p1">A.2 数据：莎士比亚字符级</h2>
+    <pre><code>python data/shakespeare_char/prepare.py</code></pre>
+    <ul>
+      <li>自动下载文本 → 写出 <code>train.bin</code> / <code>val.bin</code> / <code>meta.pkl</code></li>
+      <li>词表 <strong>65</strong> 个字符（语料里实际出现过的集合，不是全 ASCII）</li>
+      <li>train ≈ 100 万 token，val ≈ 11 万 token</li>
+    </ul>
+
+    <div class="card tip" id="data-plain">
+      <div class="label">上面三句话 · 通俗版</div>
+
+      <p><strong>①「自动下载 → 写出三个文件」在干什么？</strong></p>
+      <p style="margin:0.35rem 0">剧本原文是给人看的 <code>.txt</code>。模型更喜欢「已经编好号的二进制」。</p>
+      <table style="margin:0.5rem 0">
+        <thead><tr><th>文件</th><th>像什么</th><th>里面大概是什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>train.bin</code></td><td>练习题册</td><td>训练用的字符 ID 序列（一大串 0–64 的数字）</td></tr>
+          <tr><td><code>val.bin</code></td><td>摸底考卷</td><td>验证用的字符 ID 序列（训练时不拿它来改权重）</td></tr>
+          <tr><td><code>meta.pkl</code></td><td>密码本</td><td>「字符 ↔ 编号」对照表，以及词表大小=65</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0 0 0.85rem" class="muted">例子：字母 <code>R</code> 可能编成某个整数；整部剧就变成一长串整数，存进 bin。</p>
+
+      <p><strong>②「词表 65 个字符」是什么意思？</strong></p>
+      <p style="margin:0.35rem 0">词表 = 模型认识的「字」的清单。这里是<strong>字符级</strong>：每个英文字母、标点、换行都算一个字。</p>
+      <ul style="margin:0.35rem 0 0.5rem;padding-left:1.2rem">
+        <li>脚本扫完整本莎士比亚文本，把<strong>出现过的</strong>字符收进清单 → 刚好 <strong>65</strong> 种</li>
+        <li>不是「电脑里所有 ASCII 字符」；剧本里没出现的（比如很多数字）就不进词表</li>
+        <li>所以模型每次猜下一个字，只在这 65 个里选（见 <a href="ch01.html#vocab-65">第1章词表</a>）</li>
+      </ul>
+
+      <p><strong>③「train ≈ 100 万 token，val ≈ 11 万 token」？</strong></p>
+      <p style="margin:0.35rem 0">在这个项目里，一个 <strong>token = 一个字符</strong>（不是英文单词）。</p>
+      <div class="example-box" style="margin:0.5rem 0">
+        <span class="caption">举例</span>
+        文本 "Hi!" → 3 个 token：'H'、'i'、'!'
+      </div>
+      <ul style="margin:0.35rem 0 0;padding-left:1.2rem">
+        <li><strong>train ≈ 100 万</strong>：练习册大约有一百万个字符，用来天天练、改参数</li>
+        <li><strong>val ≈ 11 万</strong>：另外留出约十一万个字符当考试；算 val loss 用，不拿来更新权重</li>
+        <li>大约九成训练、一成验证——就是你曲线上蓝线 / 橙线各自用的数据</li>
+      </ul>
+    </div>
+
+    <div class="card" id="prepare-how" style="margin:1.25rem 0">
+      <div class="label">这些文件是怎么生成的（prepare.py）</div>
+      <p style="margin:0 0 0.65rem">一条命令搞定：</p>
+      <pre style="margin:0 0 0.85rem"><code>python data/shakespeare_char/prepare.py</code></pre>
+      <div class="example-box" style="margin:0 0 0.85rem">
+        <span class="caption">流程图</span>
+        网上莎士比亚 txt<br>
+        → ① 下载（若本地还没有）→ <strong>input.txt</strong>（人可读原文）<br>
+        → ② 统计出现过的字符 → 65 个<br>
+        → ③ 建 stoi / itos 对照表<br>
+        → ④ 前 90% / 后 10% 切开<br>
+        → ⑤ 字符 → 整数 ID，写成二进制<br>
+        → <strong>train.bin</strong> &nbsp; <strong>val.bin</strong> &nbsp; <strong>meta.pkl</strong>
+      </div>
+      <ol style="margin:0;padding-left:1.25rem">
+        <li style="margin-bottom:0.55rem">
+          <strong>下载原文 → input.txt</strong><br>
+          <span class="muted">本地没有就从 GitHub 拉 tinyshakespeare；有了就直接读。你在 IDE 里打开的就是这一步的结果。</span>
+        </li>
+        <li style="margin-bottom:0.55rem">
+          <strong>扫全文得到 65 字符词表</strong><br>
+          <code>chars = sorted(list(set(data)))</code> → 去重 + 固定顺序；不是全 ASCII。
+        </li>
+        <li style="margin-bottom:0.55rem">
+          <strong>建编码表</strong><br>
+          <code>stoi</code>：字符→ID；<code>itos</code>：ID→字符（0–64）。
+        </li>
+        <li style="margin-bottom:0.55rem">
+          <strong>切成 train / val</strong><br>
+          <code>train_data = data[:int(n*0.9)]</code>，<code>val_data = data[int(n*0.9):]</code> —— 同一部剧按长度切开，不是随机打乱句子。
+        </li>
+        <li>
+          <strong>编码并写出三个文件</strong><br>
+          每个字符换成整数 → <code>np.uint16</code> → <code>tofile</code> 成 bin；词典等写入 <code>meta.pkl</code>。
+        </li>
+      </ol>
+      <table style="margin:0.85rem 0 0">
+        <thead><tr><th>产出</th><th>怎么来的</th></tr></thead>
+        <tbody>
+          <tr><td><code>input.txt</code></td><td>下载/读取的原文</td></tr>
+          <tr><td><code>train.bin</code></td><td>前 90% 文本 → ID 列表 → uint16 落盘</td></tr>
+          <tr><td><code>val.bin</code></td><td>后 10% 同理</td></tr>
+          <tr><td><code>meta.pkl</code></td><td>保存 stoi / itos / vocab_size，采样时用来解码</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.75rem 0 0" class="takeaway">一句话：<code>prepare.py</code> = 下载剧本 → 建 65 字符词典 → 按 9:1 切开 → 字符换成数字存 bin，词典存 pkl。</p>
+    </div>
+
+    <div class="card tip" id="bin-view" style="margin:1.25rem 0">
+      <div class="label">train.bin / val.bin 里面是什么？如何查看？</div>
+      <p style="margin:0 0 0.65rem">两者格式一样：一长串 <code>uint16</code> 整数（每个 = 一个字符 ID，范围 0–64）。差别只在截自原文的哪一段。</p>
+      <table style="margin:0 0 0.75rem">
+        <thead><tr><th>文件</th><th>内容</th><th>规模（你本机）</th></tr></thead>
+        <tbody>
+          <tr><td><code>train.bin</code></td><td>剧本前约 90% 的字符 ID</td><td>1,003,854 个 ID ≈ 2MB</td></tr>
+          <tr><td><code>val.bin</code></td><td>剧本后约 10% 的字符 ID</td><td>111,540 个 ID ≈ 0.2MB</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0 0 0.5rem">用 <code>meta.pkl</code> 解码后，开头大约是：</p>
+      <div class="example-box" style="margin:0 0 0.75rem">
+        <span class="caption">解码预览</span>
+        train → First Citizen: Before we proceed...<br>
+        val&nbsp;&nbsp; → GREMIO: Good morrow, neighbour Baptista...
+      </div>
+      <p style="margin:0 0 0.65rem" class="muted">用编辑器直接打开 bin 会像乱码——那是二进制。人读原文请打开 <code>input.txt</code>；看编号版用下面脚本。</p>
+      <pre style="margin:0"><code>cd "~/大模型训练/nanoGPT"
+source .venv/bin/activate
+
+python - &lt;&lt;'PY'
+import pickle, numpy as np
+
+with open("data/shakespeare_char/meta.pkl", "rb") as f:
+    itos = pickle.load(f)["itos"]
+
+# 改成 val.bin 可看验证集
+data = np.memmap("data/shakespeare_char/train.bin", dtype=np.uint16, mode="r")
+
+print("长度:", len(data))
+print("前30个ID:", list(map(int, data[:30])))
+print("解码:")
+print("".join(itos[int(i)] for i in data[:500]))
+PY</code></pre>
+    </div>
+
+    <p>理论对照：<a href="ch01.html#vocab-65">第1章 · 65 字符词表</a>、<a href="ch01.html">X/Y 右移与 Cross-Entropy</a></p>
+
+    <h2 id="p2">A.3 第一轮训练：轻量版 v1</h2>
+    <p>目的：几分钟内看完 loss 下降 + 学会整条命令。</p>
+    <pre><code>python train.py config/train_shakespeare_char.py \
+  --device=mps --compile=False \
+  --n_layer=4 --n_head=4 --n_embd=128 --max_iters=1500</code></pre>
+    <table>
+      <thead><tr><th>项</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr><td>参数量</td><td>约 <strong>0.80M</strong></td></tr>
+        <tr><td>耗时</td><td>约 1–2 分钟量级</td></tr>
+        <tr><td>loss</td><td>约 <strong>4.19 → 1.59</strong>（train），val ≈ 1.78</td></tr>
+        <tr><td>产物</td><td><code>out-shakespeare-char/ckpt.pt</code> + <code>loss_curve.png</code></td></tr>
+        <tr><td>曲线形态</td><td>train / val <strong>一起下降</strong>，尚未明显过拟合</td></tr>
+      </tbody>
+    </table>
+    <p>额外改动：在 <code>train.py</code> 里记录评估点，训练结束用 matplotlib 存曲线（离线，不用 wandb）。</p>
+
+    <h2 id="p3">A.4 第二轮训练：加强版 v2</h2>
+    <p>因 v1 采样「很差」属预期（太小太短），再用配置文件默认更大模型训满 5000 步。</p>
+    <pre><code>python train.py config/train_shakespeare_char.py \
+  --device=mps --compile=False \
+  --out_dir=out-shakespeare-char-v2</code></pre>
+    <table>
+      <thead><tr><th>项</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr><td>参数量</td><td>约 <strong>10.65M</strong>（6 层 / n_embd=384）</td></tr>
+        <tr><td>耗时</td><td>约 24 分钟</td></tr>
+        <tr><td>终点</td><td>train ≈ <strong>0.63</strong>，val ≈ <strong>1.70</strong></td></tr>
+        <tr><td>曲线</td><td>约 1500–2000 步后 <strong>train↓ val↑</strong> → 典型过拟合</td></tr>
+        <tr><td>采样</td><td>比 v1 更像剧本英语，仍有拼写错误（字符级小模型上限）</td></tr>
+      </tbody>
+    </table>
+
+    <div class="card tip" style="margin:1rem 0">
+      <div class="label">过拟合（结合本轮实验）</div>
+      <p style="margin:0 0 0.5rem"><strong>过拟合</strong> = 训练集越来越熟（train loss↓），验证集反而变差（val loss↑）——像练习册满分、摸底考掉分，模型在「背题」。</p>
+      <p style="margin:0">你的 v2 曲线后半段就是教科书例子。详解与应对见
+        <a href="ch05.html#what-is-overfitting">第5章 · 什么是过拟合</a>，
+        读图见 <a href="ch05.html#loss-curves">训练曲线解读</a>。</p>
+    </div>
+
+    <div class="figure-grid two">
+      <figure class="figure" style="margin:0">
+        <img src="images/loss_curve_v1_lite.png" alt="v1 曲线" />
+        <figcaption><strong>v1</strong> 双降 · 适合入门</figcaption>
+      </figure>
+      <figure class="figure" style="margin:0">
+        <img src="images/loss_curve_v2_full.png" alt="v2 曲线" />
+        <figcaption><strong>v2</strong> 后半过拟合 · 采样更好</figcaption>
+      </figure>
+    </div>
+    <p>读图详解：<a href="ch05.html#loss-curves">第5章 · train/val 曲线</a></p>
+
+    <h2 id="p4">A.5 怎么用训好的模型</h2>
+    <p>产物核心是 <code>ckpt.pt</code>（权重 + model_args），不是聊天 App。</p>
+    <pre><code>source .venv/bin/activate
+
+# 轻量版
+python sample.py --out_dir=out-shakespeare-char --device=mps --start="ROMEO:"
+
+# 加强版（推荐对比）
+python sample.py --out_dir=out-shakespeare-char-v2 --device=mps \
+  --start="ROMEO:" --temperature=0.8 --num_samples=3</code></pre>
+
+    <h2 id="p5">A.6 实战时间线</h2>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num">1</div><div><strong>拉代码 + 建 venv + 装依赖</strong><span>避开 3.14 / 系统 pip</span></div></div>
+      <div class="flow-step"><div class="flow-num">2</div><div><strong>prepare 莎士比亚字符数据</strong><span>得到 65 词表与 bin</span></div></div>
+      <div class="flow-step"><div class="flow-num">3</div><div><strong>MPS 轻量训练 1500 步</strong><span>loss 下降，生成很糙但链路通</span></div></div>
+      <div class="flow-step"><div class="flow-num">4</div><div><strong>改 train.py 画 loss 曲线</strong><span>离线 matplotlib</span></div></div>
+      <div class="flow-step"><div class="flow-num">5</div><div><strong>sample.py 演示续写</strong><span>理解「教具模型」能力边界</span></div></div>
+      <div class="flow-step"><div class="flow-num">6</div><div><strong>加强版 5000 步重训</strong><span>效果提升 + 看见过拟合</span></div></div>
+      <div class="flow-step"><div class="flow-num">7</div><div><strong>写五课 HTML + lessons 脚本</strong><span>理论与本机实验对齐</span></div></div>
+    </div>
+
+    <h2 id="p6">A.7 和五章理论的对照</h2>
+    <table>
+      <thead><tr><th>你做过的事</th><th>对应课程</th></tr></thead>
+      <tbody>
+        <tr><td>X/Y、CE、65 词表、训练命令参数</td><td><a href="ch01.html">第1章</a></td></tr>
+        <tr><td>Embedding / Attn / MLP / Softmax / lm_head</td><td><a href="ch02.html">第2章</a></td></tr>
+        <tr><td>backward、AdamW、lr</td><td><a href="ch03.html">第3章</a></td></tr>
+        <tr><td>train.py 循环、评估、存盘</td><td><a href="ch04.html">第4章</a></td></tr>
+        <tr><td>采样、temperature、过拟合读图</td><td><a href="ch05.html">第5章</a></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="p7">A.8 一句话结论</h2>
+    <div class="card tip">
+      <div class="label">实战收获</div>
+      <p style="margin:0">
+        你在 Mac Studio 上完整跑通了：<strong>数据 → 前向 CE → 反向 AdamW → 曲线 → 采样</strong>。
+        字符级小 GPT 生成质量有限是预期；真正带走的是和 Qwen/Gemma 同源的训练目标与链路直觉。
+        轻量版用来理解，加强版用来看见「更大 / 更久 → 更好背训练集 → 可能过拟合」。
+      </p>
+    </div>
+        </div>
+        <div class="llm-footer-nav">
+          <a href="ch05.html">← 采样与曲线解读</a>
+          <span></span>
+        </div>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

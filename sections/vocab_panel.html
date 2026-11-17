@@ -1,0 +1,135 @@
+<div class="vocab-panel" id="vocab-65">
+      <div class="vp-head">
+        <strong>词表一览 · vocab_size = 65</strong>
+        <span>来源：data/shakespeare_char/meta.pkl（itos）</span>
+      </div>
+      <ul class="vocab-notes">
+        <li><strong>备注：</strong>词表不是「所有英文字符」，而是 <code>input.txt</code> 里<strong>实际出现过</strong>的字符集合。</li>
+        <li>每个字符对应一个固定 ID（0–64）；模型每次在这 65 个候选里预测下一个字符。</li>
+        <li>没有中文；数字也几乎没有——剧本里只出现了 <code>3</code>（如场景编号），所以词表里只有这一个数字。</li>
+      </ul>
+
+      <div class="vocab-group">
+        <div class="vg-title">空白与控制字符 <span class="count">2</span></div>
+        <p class="vg-note">换行很关键：莎士比亚剧本里角色名后常跟 <code>:</code> + <code>\n</code>，模型会学到这种格式。</p>
+        <div class="char-grid">
+          <div class="char-cell special"><span class="id">0</span><span class="ch">\n</span></div>
+          <div class="char-cell special"><span class="id">1</span><span class="ch">␣</span></div>
+        </div>
+        <p class="vg-note" style="margin:0.55rem 0 0">ID1 的 <code>␣</code> 表示空格（space），页面上用可见符号代替，避免显示成空白。</p>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">标点 / 符号 <span class="count">10</span></div>
+        <p class="vg-note">对话、省略、破折、问句等；<code>:</code> 常出现在角色名后（如 <code>ROMEO:</code>）。</p>
+        <div class="char-grid">
+          <div class="char-cell punct"><span class="id">2</span><span class="ch">!</span></div>
+          <div class="char-cell punct"><span class="id">3</span><span class="ch">$</span></div>
+          <div class="char-cell punct"><span class="id">4</span><span class="ch">&amp;</span></div>
+          <div class="char-cell punct"><span class="id">5</span><span class="ch">'</span></div>
+          <div class="char-cell punct"><span class="id">6</span><span class="ch">,</span></div>
+          <div class="char-cell punct"><span class="id">7</span><span class="ch">-</span></div>
+          <div class="char-cell punct"><span class="id">8</span><span class="ch">.</span></div>
+          <div class="char-cell punct"><span class="id">10</span><span class="ch">:</span></div>
+          <div class="char-cell punct"><span class="id">11</span><span class="ch">;</span></div>
+          <div class="char-cell punct"><span class="id">12</span><span class="ch">?</span></div>
+        </div>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">数字 <span class="count">1</span></div>
+        <p class="vg-note">仅 <code>3</code>。说明：字符级词表按「语料里出现过什么就收什么」，不是预置 0–9。</p>
+        <div class="char-grid" style="max-width:5rem">
+          <div class="char-cell special"><span class="id">9</span><span class="ch">3</span></div>
+        </div>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">大写字母 A–Z <span class="count">26</span></div>
+        <p class="vg-note">角色名、句首等多用大写；大小写是不同 ID（例如 <code>A</code>=13，<code>a</code>=39）。</p>
+        <div class="char-grid">
+          <div class="char-cell upper"><span class="id">13</span><span class="ch">A</span></div>
+          <div class="char-cell upper"><span class="id">14</span><span class="ch">B</span></div>
+          <div class="char-cell upper"><span class="id">15</span><span class="ch">C</span></div>
+          <div class="char-cell upper"><span class="id">16</span><span class="ch">D</span></div>
+          <div class="char-cell upper"><span class="id">17</span><span class="ch">E</span></div>
+          <div class="char-cell upper"><span class="id">18</span><span class="ch">F</span></div>
+          <div class="char-cell upper"><span class="id">19</span><span class="ch">G</span></div>
+          <div class="char-cell upper"><span class="id">20</span><span class="ch">H</span></div>
+          <div class="char-cell upper"><span class="id">21</span><span class="ch">I</span></div>
+          <div class="char-cell upper"><span class="id">22</span><span class="ch">J</span></div>
+          <div class="char-cell upper"><span class="id">23</span><span class="ch">K</span></div>
+          <div class="char-cell upper"><span class="id">24</span><span class="ch">L</span></div>
+          <div class="char-cell upper"><span class="id">25</span><span class="ch">M</span></div>
+          <div class="char-cell upper"><span class="id">26</span><span class="ch">N</span></div>
+          <div class="char-cell upper"><span class="id">27</span><span class="ch">O</span></div>
+          <div class="char-cell upper"><span class="id">28</span><span class="ch">P</span></div>
+          <div class="char-cell upper"><span class="id">29</span><span class="ch">Q</span></div>
+          <div class="char-cell upper"><span class="id">30</span><span class="ch">R</span></div>
+          <div class="char-cell upper"><span class="id">31</span><span class="ch">S</span></div>
+          <div class="char-cell upper"><span class="id">32</span><span class="ch">T</span></div>
+          <div class="char-cell upper"><span class="id">33</span><span class="ch">U</span></div>
+          <div class="char-cell upper"><span class="id">34</span><span class="ch">V</span></div>
+          <div class="char-cell upper"><span class="id">35</span><span class="ch">W</span></div>
+          <div class="char-cell upper"><span class="id">36</span><span class="ch">X</span></div>
+          <div class="char-cell upper"><span class="id">37</span><span class="ch">Y</span></div>
+          <div class="char-cell upper"><span class="id">38</span><span class="ch">Z</span></div>
+        </div>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">小写字母 a–z <span class="count">26</span></div>
+        <p class="vg-note">正文主体；2+10+1+26+26 = <strong>65</strong>。</p>
+        <div class="char-grid">
+          <div class="char-cell lower"><span class="id">39</span><span class="ch">a</span></div>
+          <div class="char-cell lower"><span class="id">40</span><span class="ch">b</span></div>
+          <div class="char-cell lower"><span class="id">41</span><span class="ch">c</span></div>
+          <div class="char-cell lower"><span class="id">42</span><span class="ch">d</span></div>
+          <div class="char-cell lower"><span class="id">43</span><span class="ch">e</span></div>
+          <div class="char-cell lower"><span class="id">44</span><span class="ch">f</span></div>
+          <div class="char-cell lower"><span class="id">45</span><span class="ch">g</span></div>
+          <div class="char-cell lower"><span class="id">46</span><span class="ch">h</span></div>
+          <div class="char-cell lower"><span class="id">47</span><span class="ch">i</span></div>
+          <div class="char-cell lower"><span class="id">48</span><span class="ch">j</span></div>
+          <div class="char-cell lower"><span class="id">49</span><span class="ch">k</span></div>
+          <div class="char-cell lower"><span class="id">50</span><span class="ch">l</span></div>
+          <div class="char-cell lower"><span class="id">51</span><span class="ch">m</span></div>
+          <div class="char-cell lower"><span class="id">52</span><span class="ch">n</span></div>
+          <div class="char-cell lower"><span class="id">53</span><span class="ch">o</span></div>
+          <div class="char-cell lower"><span class="id">54</span><span class="ch">p</span></div>
+          <div class="char-cell lower"><span class="id">55</span><span class="ch">q</span></div>
+          <div class="char-cell lower"><span class="id">56</span><span class="ch">r</span></div>
+          <div class="char-cell lower"><span class="id">57</span><span class="ch">s</span></div>
+          <div class="char-cell lower"><span class="id">58</span><span class="ch">t</span></div>
+          <div class="char-cell lower"><span class="id">59</span><span class="ch">u</span></div>
+          <div class="char-cell lower"><span class="id">60</span><span class="ch">v</span></div>
+          <div class="char-cell lower"><span class="id">61</span><span class="ch">w</span></div>
+          <div class="char-cell lower"><span class="id">62</span><span class="ch">x</span></div>
+          <div class="char-cell lower"><span class="id">63</span><span class="ch">y</span></div>
+          <div class="char-cell lower"><span class="id">64</span><span class="ch">z</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">关键构造</div>
+      <p style="margin:0"><strong>Y 是 X 向右平移 1 位</strong>——看到前文，预测「下一个」字符。</p>
+    </div>
+
+    <p>对应 <code>train.py</code> 中的 <code>get_batch</code>：</p>
+    <pre><code>x = data[i : i+block_size]       # 输入
+y = data[i+1 : i+1+block_size]   # 标签 = 右移 1 位</code></pre>
+
+    <p>真实例子（脚本输出）：</p>
+    <div class="mono-table">原文: 'Second Citizen:\nW'
+
+位置 | 输入X(看到的) | 标签Y(要预测的)
+   0 | 'S'            | 'e'
+   1 | 'e'            | 'c'
+   2 | 'c'            | 'o'
+  ...
+  13 | 'n'            | ':'
+  14 | ':'            | '\n'   ← 角色名后常跟冒号+换行
+  15 | '\n'           | 'W'</div>
+
+    

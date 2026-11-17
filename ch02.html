@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Embedding、Attention 与 MLP · 大模型训练入门</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false},{left:'$',right:'$',display:false}]})"></script>
+  <style>
+:root {
+  --llm-bg: #f6f7f9;
+  --llm-sidebar: #f6f7f9;
+  --llm-ink: #15202b;
+  --llm-muted: #6b7785;
+  --llm-line: #e2e6eb;
+  --llm-active-bg: #e8eef3;
+  --llm-accent: #3db8a9;
+  --llm-accent-ink: #0d3d38;
+}
+body.llm-book {
+  background: var(--llm-bg) !important;
+  color: var(--llm-ink);
+  font-size: 17px;
+  line-height: 1.75;
+}
+body.llm-book a { color: #0f5c54; }
+body.llm-book a:hover { color: var(--llm-ink); }
+.llm-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.llm-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 1.25rem 1rem 1.5rem;
+  border-right: 1px solid var(--llm-line);
+  background: var(--llm-sidebar);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.llm-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--llm-muted) !important;
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+.llm-back:hover { color: var(--llm-ink) !important; }
+.llm-toc-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--llm-muted);
+  letter-spacing: 0.06em;
+  margin: 0.35rem 0 0.15rem;
+}
+.llm-chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.llm-chapters a {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.55rem;
+  align-items: baseline;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--llm-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  border-left: 3px solid transparent;
+}
+.llm-chapters a:hover {
+  background: rgba(0,0,0,0.03);
+  color: var(--llm-ink);
+}
+.llm-chapters a.active {
+  background: var(--llm-active-bg);
+  color: var(--llm-ink);
+  font-weight: 600;
+  border-left-color: var(--llm-accent);
+}
+.llm-chapters .num {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: inherit;
+  opacity: 0.85;
+}
+.llm-sec-toc {
+  list-style: none;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0 0 0 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.llm-sec-toc a {
+  display: block;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--llm-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.llm-sec-toc a:hover {
+  background: rgba(0,0,0,0.03);
+  color: var(--llm-ink);
+}
+.llm-side-foot {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--llm-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.llm-side-foot a {
+  color: var(--llm-muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+.llm-side-foot a:hover { color: var(--llm-ink); }
+.llm-main { min-width: 0; display: flex; flex-direction: column; }
+.llm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 2rem;
+  border-bottom: 1px solid var(--llm-line);
+  background: rgba(246,247,249,0.92);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.llm-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-decoration: none;
+  color: var(--llm-ink);
+  font-weight: 650;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+.llm-brand-mark {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 6px;
+  background: #15202b;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.llm-top-links { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+.llm-top-links a {
+  color: var(--llm-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.llm-top-links a:hover { color: var(--llm-ink); }
+.llm-article {
+  width: min(760px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 1.75rem 0 4rem;
+}
+.llm-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  color: var(--llm-muted);
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+}
+.llm-chapter-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+.llm-chapter-num {
+  flex: 0 0 auto;
+  min-width: 2.4rem;
+  height: 2.4rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  background: var(--llm-accent);
+  color: var(--llm-accent-ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.llm-chapter-head h1 {
+  margin: 0;
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  border: none;
+  padding: 0;
+  letter-spacing: -0.03em;
+}
+.llm-content .lead { margin-top: 0; }
+.llm-content h2 {
+  border-top: none;
+  padding-top: 0.2rem;
+  margin-top: 2.2rem;
+  scroll-margin-top: 5rem;
+}
+.llm-content h2::before {
+  content: "";
+  display: block;
+  width: 2rem;
+  height: 3px;
+  background: var(--llm-accent);
+  margin-bottom: 0.75rem;
+  border-radius: 2px;
+}
+.llm-onpage {
+  margin: 1rem 0 1.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--llm-line);
+}
+.llm-onpage .label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--llm-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.45rem;
+}
+.llm-onpage ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.llm-onpage a { text-decoration: none; }
+.llm-footer-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--llm-line);
+}
+.llm-footer-nav a {
+  text-decoration: none;
+  color: var(--llm-ink);
+  font-weight: 600;
+}
+@media (max-width: 920px) {
+  .llm-shell { grid-template-columns: 1fr; }
+  .llm-sidebar {
+    position: static;
+    height: auto;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--llm-line);
+  }
+  .llm-article { width: min(760px, calc(100% - 2rem)); }
+  .llm-topbar { padding: 0.85rem 1rem; }
+}
+</style>
+</head>
+<body class="llm-book">
+  <div class="llm-shell">
+    <aside class="llm-sidebar" aria-label="目录">
+      <a class="llm-back" href="index.html">← 返回目录</a>
+      <div class="llm-toc-label">目录</div>
+      <ul class="llm-chapters">
+        <li><a href="ch01.html"><span class="num">01</span><span>下一个字符与 Loss</span></a></li>
+        <li><a href="ch02.html" class="active"><span class="num">02</span><span>模型前向结构</span></a></li>
+        <ul class="llm-sec-toc"><li><a href="#s2-1">2.1 人话版：Embedding…</a></li><li><a href="#s2-2">2.2 总览：前向传播链路</a></li><li><a href="#s2-3">2.3 Embedding：离散字…</a></li><li><a href="#s2-4">2.4 Attention：让每个…</a></li><li><a href="#s2-5">2.5 Block = Attn …</a></li><li><a href="#s2-6">2.6 lm_head：向量 → …</a></li><li><a href="#s2-7">2.7 Softmax：原始分数 …</a></li><li><a href="#s2-expand">2.8 扩展：和现代 LLM 结构…</a></li><li><a href="#s2-quiz">自测题</a></li></ul>
+        <li><a href="ch03.html"><span class="num">03</span><span>梯度与优化器</span></a></li>
+        <li><a href="ch04.html"><span class="num">04</span><span>train.py 整圈对照</span></a></li>
+        <li><a href="ch05.html"><span class="num">05</span><span>采样与曲线解读</span></a></li>
+        <li><a href="practice.html"><span class="num">附</span><span>实战记录</span></a></li>
+      </ul>
+      <div class="llm-side-foot">
+        <a href="index.html">总目录</a>
+        <a href="cover.html">封面</a>
+      </div>
+    </aside>
+    <div class="llm-main">
+      <header class="llm-topbar">
+        <a class="llm-brand" href="index.html">
+          <span class="llm-brand-mark">LLM</span>
+          大模型训练入门
+        </a>
+        <div class="llm-top-links">
+          <a href="index.html">目录</a>
+          <a href="practice.html">实战</a>
+        </div>
+      </header>
+      <article class="llm-article">
+        <div class="llm-meta">
+          <div>大模型训练入门 · 基于 nanoGPT</div>
+        </div>
+        <div class="llm-chapter-head">
+          <div class="llm-chapter-num">02</div>
+          <h1>Embedding、Attention 与 MLP</h1>
+        </div>
+        <p class="lead">字符 → 向量 → 因果 Attention 汇总前文 → MLP 加工 → 65 维分数 → Softmax。</p>
+        
+        <nav class="llm-onpage" aria-label="本章小节">
+          <div class="label">本章小节</div>
+          <ul>
+      <li><a href="#s2-1">2.1 人话版：Embedding / Attention / MLP</a></li>
+      <li><a href="#s2-2">2.2 总览：前向传播链路</a></li>
+      <li><a href="#s2-3">2.3 Embedding：离散字符 → 连续向量</a></li>
+      <li><a href="#s2-4">2.4 Attention：让每个位置「看见」前文</a></li>
+      <li><a href="#s2-5">2.5 Block = Attn + MLP + 残差</a></li>
+      <li><a href="#s2-6">2.6 lm_head：向量 → 65 个分数</a></li>
+      <li><a href="#s2-7">2.7 Softmax：原始分数 → 合法概率</a></li>
+      <li><a href="#s2-expand">2.8 扩展：和现代 LLM 结构的对照</a></li>
+      <li><a href="#s2-quiz">自测题</a></li>
+          </ul>
+        </nav>
+        <div class="llm-content">
+<div class="card tip">
+  <div class="label">本章导读</div>
+  <p style="margin:0">本章先建立 Embedding / Attention / MLP 的分工地图，再分别深入查表、因果注意力、残差块、lm_head 与 Softmax。目标不是背名词，而是能指着 NanoGPT 前向链路说出<strong>每个盒子的输入输出</strong>。</p>
+</div>
+
+<div class="card tip">
+      <div class="label">配套脚本</div>
+      <pre><code>cd nanoGPT &amp;&amp; source .venv/bin/activate
+python lessons/lesson2_forward.py</code></pre>
+    </div>
+
+    <h2 id="s2-1">2.1 人话版：Embedding / Attention / MLP</h2>
+<section class="deep-dive" aria-label="Embedding Attention MLP 人话版">
+      <div class="deep-dive-head">
+        <span class="tag">人话版</span>
+        <span>Embedding / Attention / MLP —— Transformer 三大块</span>
+      </div>
+      <div class="deep-dive-body">
+        <p class="takeaway">Embedding：把文字变成数字向量；Attention：让文字互相「看得到彼此」（在 GPT 里只能看<strong>前面</strong>）；MLP：对每个位置单独做思考加工。三块合起来就是 Transformer 的基础能力，也是 NanoGPT 的核心。</p>
+
+        <h3><span class="n">①</span>Embedding 嵌入</h3>
+        <p><strong>通俗说：翻译器</strong>——把 token（字符 / 词元）变成一串数字向量。</p>
+        <ul>
+          <li>计算机不能直接看懂 <code>A</code>、<code>B</code>、<code>我</code>、<code>love</code>，只能算数字</li>
+          <li>词表里每一个字符，对应一个固定长度的向量（你这边是 <strong>128</strong> 维一串小数；大模型常见 512 / 768 / 4096…）</li>
+          <li>还有<strong>位置嵌入 Positional Embedding</strong>：告诉模型「这个字在第几个位置」——因为 Attention 本身不自带先后顺序</li>
+        </ul>
+        <div class="example-box">
+          <span class="caption">例子</span>
+          字符 R → 查表得到向量 [0.21, -0.33, 0.75, ...]（长度 = n_embd）
+        </div>
+        <p><strong>作用：</strong>文字 → 数字，作为模型输入。</p>
+        <div class="card warn" style="margin:0.75rem 0;box-shadow:none">
+          <div class="label">两处容易误会（已修正）</div>
+          <ul style="margin:0.35rem 0 0;padding-left:1.1rem">
+            <li>「语义相近的 token 向量更近」——这是<strong>训练之后</strong>逐渐学出来的；刚初始化时向量几乎是随机的，谈不上语义。</li>
+            <li>这里的 embedding 是<strong>模型内部输入层</strong>，不是检索用的「文本向量模型」。原理都是「映射到向量空间」，用途不同。</li>
+          </ul>
+        </div>
+
+        <h3><span class="n">②</span>Attention 自注意力（Self-Attention）</h3>
+        <p><strong>通俗说：</strong>让每个 token 去看上下文里其他 token，判断哪些字对自己很重要。像阅读时每个字都在扫整段话、抓关联。</p>
+        <div class="example-box">
+          <span class="caption">指代例子（从左往右读时）</span>
+          「它把杯子摔了，它碎了」<br>
+          第二个「它」可以看向前面的「杯子」（前文），从而偏向理解为杯子碎了。
+        </div>
+        <p>每个位置会分出三组向量：</p>
+        <dl>
+          <dt>Query（查询）</dt>
+          <dd>我这个词，想找什么样的伙伴</dd>
+          <dt>Key（键）</dt>
+          <dd>所有词对外展示的特征</dd>
+          <dt>Value（值）</dt>
+          <dd>所有词携带的、真正要传出去的信息</dd>
+        </dl>
+        <ul class="chain">
+          <li>Query 和 Key 算相似度（打分）</li>
+          <li>Softmax 变成权重：哪些词更相关</li>
+          <li>用权重对 Value 加权求和 → 融合上下文后的新向量</li>
+        </ul>
+        <p><strong>多头注意力 Multi-head：</strong>同时开多组独立「阅读通道」（你设 <code>n_head=4</code>）。一组可能偏语法、一组偏指代、一组偏搭配，最后拼在一起。</p>
+        <p class="takeaway"><strong>作用：</strong>抓取上下文关系、长距离依赖。</p>
+        <div class="card warn" style="margin:0.75rem 0;box-shadow:none">
+          <div class="label">对 NanoGPT / GPT 极其重要</div>
+          <p style="margin:0">GPT 是<strong>单向</strong>自注意力（因果掩码 causal mask）：一个 token <strong>只能看前面的文字，看不到后面</strong>，正好匹配「自回归预测下一个 token」。BERT 类双向模型可以左右都看——和 GPT 不同。</p>
+        </div>
+
+        <h3><span class="n">③</span>MLP（Multilayer Perceptron） 多层感知机</h3>
+        <p><strong>通俗说：</strong>独立的小神经网络，给每个位置单独思考、加工信息。</p>
+        <ul>
+          <li>Attention 之后，每个 token 已经收集好上下文，还需要<strong>非线性变换</strong>把信息消化、提炼</li>
+          <li>对每一个位置的向量<strong>单独</strong>跑一遍；位置之间互不干扰（跨位置交换信息是 Attention 的活）</li>
+          <li>一般结构：升维 → 激活（如 GELU）→ 降维。你这边大致是 128 → 512 → 128</li>
+        </ul>
+        <p class="takeaway">教材常说：Attention =「收集信息」，MLP =「思考消化信息」。<strong>作用：</strong>非线性加工、提炼，也承担一部分「编码知识」的能力。</p>
+
+        <h3><span class="n">④</span>串起来：NanoGPT 真实顺序</h3>
+        <div class="example-box">
+          <span class="caption">注意：Embedding 只在入口做一次，不是每一层都做</span>
+          输入 token<br>
+          → Embedding（文字→数字）+ 位置信息&nbsp;&nbsp;← 只此一次<br>
+          → 重复 n_layer 次 Block：【多头自注意力】→【MLP】（每步还有 LayerNorm + 残差）<br>
+          → 最后 lm_head 得到 logits → Softmax + 交叉熵算 loss
+        </div>
+        <p>你调过的 <code>n_layer</code>（如 4）= Block 叠多少层。</p>
+
+        <h3><span class="n">⑤</span>极简比喻（因果版，已改对）</h3>
+        <p>读片段：<code>Romeo speak</code>（从左到右生成时）</p>
+        <ul>
+          <li><strong>Embedding：</strong>把每个字译成一串数字笔记</li>
+          <li><strong>Attention（单向）：</strong><code>speak</code> 可以看前面的 <code>Romeo</code>，知道「谁在说话」；但 <code>Romeo</code> <strong>不能</strong>看后面的 <code>speak</code>（那是未来，被 causal mask 挡住）</li>
+          <li><strong>MLP：</strong>各位置在自己内部加工已收集到的信息</li>
+          <li>多层堆叠后输出：下一个字符更可能是什么</li>
+        </ul>
+        <div class="card warn" style="margin:0.75rem 0;box-shadow:none">
+          <div class="label">常见错说法（不要记）</div>
+          <p style="margin:0">「Romeo 看后面的 speak，知道主谓关系」——这是<strong>双向</strong>注意力的直觉，<strong>不符合 GPT / NanoGPT</strong>。自回归生成时，前面的词在被写下的那一刻，后面的词还不存在。</p>
+        </div>
+
+        <h3><span class="n">⑥</span>区分重点，防止搞混</h3>
+        <table>
+          <thead><tr><th>模块</th><th>一句话</th><th>跨位置？</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Embedding</strong></td><td>文字→数字，输入层</td><td>否（查表）</td></tr>
+            <tr><td><strong>Attention</strong></td><td>token 之间通信、找关联</td><td><strong>是</strong>（GPT 里只向前文）</td></tr>
+            <tr><td><strong>MLP</strong></td><td>单个 token 内部运算思考</td><td><strong>否</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <h2 id="s2-2">2.2 总览：前向传播链路</h2>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">A</div>
+        <div><strong>字符 ID</strong><span>离散整数，如 'H'→20</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">B</div>
+        <div><strong>Token Emb + Pos Emb</strong><span>变成连续向量并注入位置信息</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">C</div>
+        <div><strong>× N 层 Block</strong><span>每层 = Attention（换信息）+ MLP（加工）+ 残差</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">D</div>
+        <div><strong>lm_head</strong><span>映射到 vocab_size=65 维 logits</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">E</div>
+        <div><strong>Softmax → P → CE Loss</strong><span>接回第1章的数学</span></div>
+      </div>
+    </div>
+
+    <h2 id="s2-3">2.3 Embedding：离散字符 → 连续向量</h2>
+    <p><code>model.py</code> 中的核心三行：</p>
+    <pre><code>tok_emb = self.transformer.wte(idx)   # (B, T, n_embd)
+pos_emb = self.transformer.wpe(pos)   # (T, n_embd)
+x = self.transformer.drop(tok_emb + pos_emb)</code></pre>
+
+    <ul>
+      <li><code>wte</code>：查表，每个字符 ID → <code>n_embd</code> 维向量（你训练轻量版是 <strong>128</strong>）</li>
+      <li><code>wpe</code>：位置 0,1,2… 也各有一个向量</li>
+      <li><strong>相加</strong>：同一个 <code>'l'</code> 在 <code>Hello</code> 的第 3、4 位，表示不同（位置不同）</li>
+    </ul>
+
+    <div class="card tip" id="emb-card-stamp">
+      <div class="label">通俗版：名片 + 印章</div>
+      <p style="margin:0 0 0.75rem">把这块想成：先给每个字发一张<strong>名片</strong>，再盖一个「第几位」的<strong>印章</strong>，两样叠在一起交给后面的网络。</p>
+
+      <p><strong>1）计算机眼里先是编号，不是字母</strong></p>
+      <div class="example-box" style="margin:0.4rem 0 0.75rem">
+        <span class="caption">Hello → ID</span>
+        H e l l o<br>
+        ↓ ↓ ↓ ↓ ↓<br>
+        20 43 50 50 53
+      </div>
+      <p style="margin:0 0 0.75rem">这些只是编号，还不能直接算，要用 Embedding <strong>查表</strong>换成一串小数。</p>
+
+      <p><strong>2）wte = 字的名片（Token Embedding）</strong></p>
+      <p style="margin:0.35rem 0">词表里每个字符都有一张固定长度的名片。你训练时长度是 <strong>128</strong>（演示脚本写成 8 只是好画）：</p>
+      <div class="example-box" style="margin:0.4rem 0 0.75rem">
+        <span class="caption">查表</span>
+        查「H」→ [0.12, -0.44, 0.08, …] 一共 128 个数<br>
+        查「e」→ [另一串 128 个数]<br>
+        查「l」→ [又一串…]
+      </div>
+      <p style="margin:0 0 0.75rem">同一字母、同一张名片：两个 <code>l</code> 查出来的<strong>字向量一开始是一样的</strong>。对应 <code>tok_emb = self.transformer.wte(idx)</code>。</p>
+
+      <p><strong>3）wpe = 第几位的印章（Position Embedding）</strong></p>
+      <p style="margin:0.35rem 0 0.75rem">光有字还不够：两个 <code>l</code> 一个在第 3 位、一个在第 4 位，角色不同。Attention 自己也不知道谁前谁后，所以再给每个<strong>位置</strong>盖一枚印章（位置 0、1、2… 各一串 128 个数）。对应 <code>pos_emb = self.transformer.wpe(pos)</code>。</p>
+
+      <p><strong>4）为什么要相加？</strong></p>
+      <pre style="margin:0.4rem 0"><code>x = tok_emb + pos_emb   # 每个位置：字的名片 + 位置印章</code></pre>
+      <table style="margin:0.5rem 0">
+        <thead><tr><th></th><th>第 3 个 l</th><th>第 4 个 l</th></tr></thead>
+        <tbody>
+          <tr><td>字名片</td><td>相同（都是 l）</td><td>相同</td></tr>
+          <tr><td>位置印章</td><td>位置 2 的</td><td>位置 3 的</td></tr>
+          <tr><td><strong>相加后</strong></td><td><strong>不同</strong></td><td><strong>不同</strong></td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0 0 0.75rem">这样模型才能区分「Hello 里前一个 l / 后一个 l」。<code>drop</code> 只是训练时随机丢掉一点点，防死记硬背，理解时可先忽略。</p>
+
+      <p><strong>5）(1, 5, 8) 是什么意思？</strong></p>
+      <p style="margin:0.35rem 0">别被括号吓到，就是「小表格」的尺寸：</p>
+      <div class="example-box" style="margin:0.4rem 0 0.75rem">
+        <span class="caption">形状 = (batch大小, 有几个字, 每个字几维小数)</span>
+        演示 Hello： (1, 5, 8) → 1 句话、5 个字、每字 8 个数<br>
+        你真训练时约：(64, 256, 128) → 同一件事，只是更大
+      </div>
+
+      <p class="takeaway" style="margin:0">三句话：<strong>wte</strong> 这个字是谁 → 查名片；<strong>wpe</strong> 站在第几位 → 盖印章；<strong>相加</strong> 后才是 Attention / MLP 真正拿去算的东西。</p>
+    </div>
+
+    <div class="card">
+      <div class="label">形状直觉</div>
+      <p style="margin:0">输入文本 <code>Hello</code>（T=5），演示脚本用 <code>n_embd=8</code> 时：<code>tok_emb</code> 形状为 <code>(1, 5, 8)</code>，即 batch×序列长度×向量维度。</p>
+    </div>
+
+    <h2 id="s2-4">2.4 Attention：让每个位置「看见」前文</h2>
+    <p>核心公式：</p>
+    <div class="math">$$\mathrm{Attention}(Q,K,V)=\mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d}}\right)V$$</div>
+
+    <table>
+      <thead>
+        <tr><th>符号</th><th>含义</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>$Q$（Query）</td><td>我在找什么</td></tr>
+        <tr><td>$K$（Key）</td><td>我有什么可被找</td></tr>
+        <tr><td>$V$（Value）</td><td>真正传出去的内容</td></tr>
+        <tr><td>$\sqrt{d}$</td><td>防止点积过大，Softmax 变得过于尖锐</td></tr>
+        <tr><td>Causal Mask</td><td>右上角置 $-\infty$，不能偷看未来字符</td></tr>
+      </tbody>
+    </table>
+
+    <p>对应代码（慢速路径便于阅读；MPS 上常走 flash 路径，数学等价）：</p>
+    <pre><code>att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+att = F.softmax(att, dim=-1)
+y = att @ v</code></pre>
+
+    <h3>Causal Attention 权重长什么样</h3>
+    <p>脚本对 <code>Hello</code>（5 个位置）算出的示意矩阵——<strong>右上角全 0</strong>：</p>
+    <div class="attn-grid" aria-label="causal attention weights">
+      <div class="attn-row">
+        <div class="attn-cell hot">1.00</div>
+        <div class="attn-cell zero">0</div>
+        <div class="attn-cell zero">0</div>
+        <div class="attn-cell zero">0</div>
+        <div class="attn-cell zero">0</div>
+      </div>
+      <div class="attn-row">
+        <div class="attn-cell">0.50</div>
+        <div class="attn-cell hot">0.50</div>
+        <div class="attn-cell zero">0</div>
+        <div class="attn-cell zero">0</div>
+        <div class="attn-cell zero">0</div>
+      </div>
+      <div class="attn-row">
+        <div class="attn-cell">0.37</div>
+        <div class="attn-cell">0.31</div>
+        <div class="attn-cell hot">0.32</div>
+        <div class="attn-cell zero">0</div>
+        <div class="attn-cell zero">0</div>
+      </div>
+      <div class="attn-row">
+        <div class="attn-cell">0.23</div>
+        <div class="attn-cell">0.25</div>
+        <div class="attn-cell">0.26</div>
+        <div class="attn-cell hot">0.27</div>
+        <div class="attn-cell zero">0</div>
+      </div>
+      <div class="attn-row">
+        <div class="attn-cell">0.17</div>
+        <div class="attn-cell">0.20</div>
+        <div class="attn-cell">0.22</div>
+        <div class="attn-cell">0.24</div>
+        <div class="attn-cell hot">0.17</div>
+      </div>
+    </div>
+    <p class="muted">读法：第 $i$ 行 = 位置 $i$ 对所有位置的关注比例；每行和 ≈ 1。右上为 0 = 禁止看未来。</p>
+
+    <div class="card tip">
+      <div class="label">结构上的「自回归保证」</div>
+      <p style="margin:0">预测第 $t$ 个字符时，只能用位置 $0..t$ 的信息。这不是训练技巧，而是模型结构强制的——和采样时「一个字一个字往后吐」完全对齐。</p>
+    </div>
+
+    <h2 id="s2-5">2.5 Block = Attn + MLP + 残差</h2>
+    <p>每个位置进来是一个向量（你这边 128 维），经过一层后还是 128 维，但内容被「更新」过：</p>
+    <pre><code>def forward(self, x):
+    x = x + self.attn(self.ln_1(x))
+    x = x + self.mlp(self.ln_2(x))
+    return x</code></pre>
+
+    <div class="card tip">
+      <div class="label">一层 Block 数据流</div>
+      <pre style="margin:0.35rem 0 0"><code>x ──► LayerNorm ──► Attn ──► 加回 x
+  ──► LayerNorm ──► MLP  ──► 加回 x</code></pre>
+    </div>
+
+    <div class="card tip" id="residual">
+      <div class="label">残差是什么意思？</div>
+      <p style="margin:0 0 0.65rem"><strong>残差（residual）</strong>就是代码里的「加上原来的 <code>x</code>」：</p>
+      <pre style="margin:0 0 0.75rem"><code>x = x + self.attn(...)   # 不是用 Attn 结果直接换掉 x
+x = x + self.mlp(...)    # 而是：旧的 x + 本层算出的增量</code></pre>
+      <p style="margin:0 0 0.65rem">名字来自「残差 ≈ 差值」：本层主要学<strong>要在原表示上改多少</strong>，而不是从零重写整份表示。</p>
+      <table style="margin:0.5rem 0">
+        <thead><tr><th>写法</th><th>像什么</th></tr></thead>
+        <tbody>
+          <tr><td>没有残差：<code>x = Attn(x)</code></td><td>每层把笔记<strong>整页撕掉重写</strong></td></tr>
+          <tr><td>有残差：<code>x = x + Attn(x)</code></td><td>在原稿上<strong>贴便利贴</strong>（增量修改）</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.65rem 0"><strong>为什么要这样？</strong></p>
+      <ul style="margin:0 0 0.65rem;padding-left:1.2rem">
+        <li><strong>好训练</strong>：梯度可以顺着「+」那条直路回传，深层不容易训不动</li>
+        <li><strong>好叠加</strong>：<code>n_layer=4/6</code> 甚至更深都能堆，每层只负责「再改一点」</li>
+        <li><strong>更稳</strong>：一层就算学得一般，至少还保留输入本身</li>
+      </ul>
+      <p class="takeaway" style="margin:0">一句话：残差 = 输出 = 输入 + 本层增量；Attn/MLP 负责「改什么」，残差负责「别把旧的弄丢」。</p>
+    </div>
+
+    <h3>Attn = Attention（注意力）</h3>
+    <p><strong>干什么：让不同位置互相交换信息。</strong>例如预测下一个字时，当前位置可以去「看」前面的 <code>ROMEO</code>、<code>:</code>、换行等，按相关程度加权汇总。</p>
+    <ul>
+      <li>用 Q / K / V 算「谁该看谁」</li>
+      <li>有 <strong>Causal Mask</strong>：不能看未来字符</li>
+      <li>你设了 <code>n_head=4</code>：同一层 4 组注意力，从不同角度看前文，再拼起来</li>
+    </ul>
+    <p class="takeaway" style="border-left:4px solid var(--accent);padding-left:0.9rem;background:#f0fdfa;border-radius:0 8px 8px 0;padding-top:0.55rem;padding-bottom:0.55rem;padding-right:0.75rem">一句话：Attn 管「位置之间」——谁和谁有关。类比：开会时听别人发言。</p>
+
+    <h3>MLP = 多层感知机</h3>
+    <p><strong>干什么：每个位置自己做非线性变换，不和别的位置说话。</strong></p>
+    <pre><code># nanoGPT 里的 MLP
+# 128 → 512（4×n_embd）→ GELU → 512 → 128
+self.c_fc    # 扩维
+self.gelu    # 非线性
+self.c_proj  # 压回 n_embd</code></pre>
+    <p class="takeaway" style="border-left:4px solid var(--accent);padding-left:0.9rem;background:#f0fdfa;border-radius:0 8px 8px 0;padding-top:0.55rem;padding-bottom:0.55rem;padding-right:0.75rem">一句话：MLP 管「位置内部」——把当前向量特征再加工。类比：听完后自己整理笔记。</p>
+
+    <table>
+      <thead>
+        <tr><th></th><th>Attn</th><th>MLP</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>全称</td><td>Attention / 自注意力</td><td>Multi-Layer Perceptron</td></tr>
+        <tr><td>作用范围</td><td>多个位置之间</td><td>单个位置内部</td></tr>
+        <tr><td>直观</td><td>看前文、选重点</td><td>想一想、变换特征</td></tr>
+        <tr><td>类比</td><td>开会听别人发言</td><td>听完后整理笔记</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead>
+        <tr><th>模块</th><th>分工</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Attention</strong></td><td>位置之间交换信息（例如学会「Citizen 后常跟冒号」）</td></tr>
+        <tr><td><strong>MLP</strong></td><td>每个位置自己做非线性变换（扩到 $4\times n_{embd}$ 再压回）</td></tr>
+        <tr><td><strong>残差 x + …</strong></td><td>深层梯度可回传；每层只学「增量修正」</td></tr>
+        <tr><td><strong>LayerNorm</strong></td><td>稳定激活分布，让训练更稳</td></tr>
+      </tbody>
+    </table>
+
+    <p>你训练时 <code>n_layer=4</code>，就是把这个 Block 叠 4 次。整条链路：</p>
+    <pre><code>字符 → Embedding(128维)
+  → [Attn + MLP] × 4     ← n_layer 个 Block
+  → lm_head → 65 个 logits → Softmax → 概率</code></pre>
+    <p class="muted">训练命令里的参数说明见 <a href="ch01.html#attn-mlp">第1章 · Attn 和 MLP</a>。</p>
+
+    <h2 id="s2-6">2.6 lm_head：向量 → 65 个分数</h2>
+    <pre><code>logits = self.lm_head(x)   # (B, T, vocab_size)
+loss = F.cross_entropy(...)</code></pre>
+    <p>每个位置输出 65 维 <code>logits</code>，再进入第1章的 Softmax 与 Cross-Entropy。</p>
+
+    <div class="card tip" id="lm-head-plain">
+      <div class="label">通俗版：阅卷老师打分</div>
+      <p style="margin:0 0 0.75rem">前面 Embedding / Attention / MLP 忙了半天，每个位置手里拿着一叠「读后笔记」（128 维向量 <code>x</code>）。  
+      <strong>lm_head 就像阅卷老师：</strong>对照词表里 65 个候选字符，给每个候选打一个分——谁分高，模型就更觉得「下一个该是它」。</p>
+
+      <div class="example-box" style="margin:0.4rem 0 0.75rem">
+        <span class="caption">某一个位置上的输出（示意）</span>
+        候选：\n &nbsp; 空格 &nbsp; ! &nbsp; … &nbsp; R &nbsp; … &nbsp; z<br>
+        分数：1.2 &nbsp; 0.3 &nbsp; -0.5 &nbsp; … &nbsp; 3.8 &nbsp; … &nbsp; -1.1<br>
+        → 一共 65 个数 = logits（还不是概率）
+      </div>
+
+      <ul style="margin:0 0 0.75rem;padding-left:1.2rem">
+        <li><strong>为什么是 65？</strong>词表就 65 个字符，老师要对每个可能的「下一字」都打分，一个都不能少。</li>
+        <li><strong>怎么从 128 维变成 65 分？</strong>一次线性变换（矩阵乘法）：用 65 把「尺子」去量这叠笔记，每把尺子量出一个分数。公式就是第1章写的 $\mathrm{logits}=x W^{\top}$。</li>
+        <li><strong>接下来呢？</strong>Softmax 把分数收成 0~1 的概率；再和标准答案比，用 Cross-Entropy 算 loss——「正确答案那个字，你给的概率够不够大」。</li>
+      </ul>
+
+      <p style="margin:0 0 0.5rem"><strong>整句话串起来：</strong></p>
+      <div class="example-box" style="margin:0">
+        <span class="caption">前向最后两步</span>
+        读后笔记 x（128维）<br>
+        → lm_head 打出 65 个分（logits）<br>
+        → Softmax 变概率 → 和真实下一字符比 → 得到 loss
+      </div>
+      <p style="margin:0.75rem 0 0" class="muted">训练时每个位置都要打分（好算整段 loss）；生成时通常只看<strong>最后一个位置</strong>的 65 分，再采样吐出下一个字符。</p>
+    </div>
+
+    <div class="card" id="model-py-map">
+      <div class="label">和 model.py 的速查对应（加了人话）</div>
+      <p style="margin:0.35rem 0 0.65rem" class="muted">左边是「在干什么」，右边是「代码在哪」——对照着翻 <code>model.py</code> 即可。</p>
+      <table style="margin:0;border:none;box-shadow:none">
+        <thead>
+          <tr><th>人话</th><th>数学/模块</th><th>代码位置</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>发名片 + 盖位置印章</td>
+            <td>wte / wpe 相加</td>
+            <td><code>GPT.forward</code> 开头</td>
+          </tr>
+          <tr>
+            <td>看前文、抓重点（不能看未来）</td>
+            <td>$QK^{\top}/\sqrt{d}$ + mask</td>
+            <td><code>CausalSelfAttention.forward</code></td>
+          </tr>
+          <tr>
+            <td>每个位置自己消化信息</td>
+            <td>残差 + MLP</td>
+            <td><code>Block.forward</code></td>
+          </tr>
+          <tr>
+            <td>对照 65 个字打分，再算猜错惩罚</td>
+            <td>lm_head + CE</td>
+            <td><code>GPT.forward</code> 末尾</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="s2-7">2.7 Softmax：原始分数 → 合法概率</h2>
+    <p class="takeaway" style="border-left:4px solid var(--accent);padding:0.55rem 0.75rem;background:#f0fdfa;border-radius:0 8px 8px 0">一句话：Softmax 把一堆随便的原始分数，换成<strong>总和为 1</strong> 的相对概率；分数越高，分到的概率越大。</p>
+
+    <div class="math">$$\boldsymbol{\sigma}(\boldsymbol{z})_i = \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}$$</div>
+    <dl>
+      <dt>$\boldsymbol{z}$</dt>
+      <dd>输入，就是 <strong>logits</strong>：一组可正可负、可大可小的原始分数</dd>
+      <dt>$K$</dt>
+      <dd>候选总数。NanoGPT 字符版 $K=65$（词表 65 个字符）</dd>
+      <dt>$e^{z_i}$</dt>
+      <dd>自然指数，$e\approx 2.71828$，把分数都变成<strong>正数</strong></dd>
+      <dt>分母</dt>
+      <dd>把全部 $e^{z_j}$ 加起来做归一化</dd>
+    </dl>
+
+    <div class="compare">
+      <div class="col prob">
+        <div class="kicker">输出特点 ①</div>
+        <strong>每个值都在 $(0,1)$</strong>
+        <p>可以当成「概率」来读</p>
+      </div>
+      <div class="col like">
+        <div class="kicker">输出特点 ②</div>
+        <strong>全部加起来 $= 1$</strong>
+        <p>合法概率分布（不会出现概率和超过 100%）</p>
+      </div>
+    </div>
+
+    <section class="deep-dive theme-loss" aria-label="Softmax 手算与特性">
+      <div class="deep-dive-head">
+        <span class="tag">Deep Dive</span>
+        <span>手算例子 + 两个重要特性 + 工程细节</span>
+      </div>
+      <div class="deep-dive-body">
+
+        <h3><span class="n">①</span>手工例子（$K=3$）</h3>
+        <p>假设 logits：$z=[2,\ 1,\ 0]$</p>
+        <div class="example-box">
+          <span class="caption">三步走</span>
+          ① 指数：$e^2\approx7.389$，$e^1\approx2.718$，$e^0=1$<br>
+          ② 分母：$7.389+2.718+1=11.107$<br>
+          ③ 相除：$p\approx[0.665,\ 0.245,\ 0.090]$，总和 $=1$ ✔
+        </div>
+        <p>含义：模型认为<strong>第 1 个候选</strong>概率最高。</p>
+
+        <h3><span class="n">②</span>特性：相对大小会被放大</h3>
+        <p>logits 差距一大，概率会更「一边倒」。例如 $z=[5,\ 0,\ 0]$ 时，第一个的概率会非常接近 1——高分被指数「拉得更远」。</p>
+
+        <h3><span class="n">③</span>特性：不怕负数</h3>
+        <p>例如 $z=[-1,\ -2,\ -3]$：</p>
+        <div class="example-box">
+          <span class="caption">负数也能算</span>
+          $e^{-1}\approx0.368$，$e^{-2}\approx0.135$，$e^{-3}\approx0.050$<br>
+          总和 $\approx0.553$ → $p\approx[0.665,\ 0.244,\ 0.091]$
+        </div>
+        <p class="muted">不会报错。有趣的是：这组和 $[2,1,0]$ 几乎同分布——因为 Softmax 只看<strong>相对差</strong>，整体加减同一个数，概率不变。</p>
+
+        <h3><span class="n">④</span>工程细节：数值稳定版（PyTorch 内部用）</h3>
+        <p>若某个 $z_i$ 很大，$e^{z_i}$ 可能直接爆成无穷大。实际实现会先减去本组最大值：</p>
+        <div class="math">$$\sigma(z)_i=\frac{e^{z_i-\max(z)}}{\sum_j e^{z_j-\max(z)}}$$</div>
+        <p class="takeaway">数学结果不变，但不容易溢出。</p>
+
+        <h3><span class="n">⑤</span>和 NanoGPT 的关系</h3>
+        <pre><code>loss = F.cross_entropy(logits, targets)</code></pre>
+        <p>PyTorch 的 <code>cross_entropy</code> <strong>内部自带 Softmax</strong>，训练时你不用再手写一遍。</p>
+        <p>若自己拆开写，等价于：</p>
+        <pre><code>probs = torch.softmax(logits, dim=-1)
+loss = -torch.log(probs[正确类别的位置])</code></pre>
+        <p>这就是第1章的交叉熵 / NLL。</p>
+      </div>
+    </section>
+
+<h2 id="s2-expand">2.8 扩展：和现代 LLM 结构的对照</h2>
+<p>NanoGPT 的 Decoder-only Transformer 与今天主流 LLM（如 Llama / Qwen 一类）同属一族。阅读开源模型配置时，可主动寻找这些对应物：</p>
+<ul>
+  <li><code>n_embd</code> / hidden size：向量宽度</li>
+  <li><code>n_head</code> / num attention heads：注意力头数</li>
+  <li><code>n_layer</code>：堆叠多少个 Block</li>
+  <li>RoPE 等位置编码：替换或增强本节的绝对位置嵌入</li>
+</ul>
+<p>先掌握本节的「因果自注意力 + MLP + 残差」，再去看旋转位置编码、GQA、SwiGLU，会是增量学习，而不是从零重来。</p>
+
+<h2 id="s2-quiz">自测题</h2>
+    <div class="quiz">
+      <p><strong>Q1：</strong>为什么 Attention 矩阵右上角必须是 0？如果允许看未来会怎样？</p>
+      <p class="muted">提示：训练标签是「下一个字符」；若能偷看答案，模型会作弊，学不会真正的语言预测。</p>
+      <p><strong>Q2：</strong>Attention 和 MLP 的分工有什么不同？</p>
+      <p class="muted">提示：一个管「位置之间」，一个管「位置内部」。</p>
+    </div>
+
+        </div>
+        <div class="llm-footer-nav">
+          <a href="ch01.html">← 下一个字符与 Loss</a>
+          <a href="ch03.html">梯度与优化器 →</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<figure class="loop-diagram" aria-label="sample.py 与 generate 生成流程图">
+      <p class="loop-title">sample.py → model.generate · 生成路径</p>
+      <svg viewBox="0 0 540 820" role="img" aria-labelledby="gen-svg-title gen-svg-desc">
+        <title id="gen-svg-title">生成代码流程图</title>
+        <desc id="gen-svg-desc">先加载 ckpt 与编码表，把 prompt 编成 id；再进入 generate 循环：截断上下文、前向取末位 logits、温度与 top-k、采样、拼回序列；最后解码打印。</desc>
+        <defs>
+          <marker id="g-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a6a7a"/>
+          </marker>
+          <marker id="g-arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f766e"/>
+          </marker>
+        </defs>
+
+        <!-- sample.py 外壳 -->
+        <rect x="70" y="8" width="400" height="36" rx="8" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="270" y="31" text-anchor="middle" font-size="13" fill="#64748b" font-weight="600" font-family="IBM Plex Mono, monospace">sample.py · 外壳（只做一次 / 每条样本）</text>
+
+        <line x1="270" y1="44" x2="270" y2="62" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <rect x="100" y="62" width="340" height="48" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.8"/>
+        <text x="270" y="82" text-anchor="middle" font-size="14" fill="#134e4a" font-weight="600" font-family="Source Sans 3, sans-serif">① 加载 ckpt.pt → 建 GPT → eval()</text>
+        <text x="270" y="100" text-anchor="middle" font-size="11" fill="#5a6a7a" font-family="IBM Plex Mono, monospace">读 meta.pkl 得到 encode / decode</text>
+
+        <line x1="270" y1="110" x2="270" y2="128" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <rect x="100" y="128" width="340" height="48" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.8"/>
+        <text x="270" y="148" text-anchor="middle" font-size="14" fill="#134e4a" font-weight="600" font-family="Source Sans 3, sans-serif">② prompt → encode → 张量 x</text>
+        <text x="270" y="166" text-anchor="middle" font-size="11" fill="#5a6a7a" font-family="IBM Plex Mono, monospace">默认 start="\\n" · shape (1, t)</text>
+
+        <line x1="270" y1="176" x2="270" y2="194" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <rect x="120" y="194" width="300" height="40" rx="8" fill="#0f766e"/>
+        <text x="270" y="219" text-anchor="middle" font-size="14" fill="#fff" font-weight="600" font-family="IBM Plex Mono, monospace">torch.no_grad() · 不改权重</text>
+
+        <line x1="270" y1="234" x2="270" y2="256" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <!-- generate 内环标题 -->
+        <rect x="55" y="256" width="430" height="470" rx="14" fill="#fff7ed" stroke="#b45309" stroke-width="1.8"/>
+        <text x="270" y="280" text-anchor="middle" font-size="14" fill="#9a3412" font-weight="600" font-family="Source Sans 3, sans-serif">model.generate · 内环（重复 max_new_tokens 次）</text>
+
+        <rect x="130" y="294" width="280" height="36" rx="8" fill="#b45309"/>
+        <text x="270" y="317" text-anchor="middle" font-size="13" fill="#fff" font-weight="600" font-family="IBM Plex Mono, monospace">for _ in range(max_new_tokens)</text>
+
+        <line x1="270" y1="330" x2="270" y2="350" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ③ 裁剪 -->
+        <rect x="95" y="350" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="368" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">③ 太长就裁：只留最近 block_size</text>
+        <text x="270" y="385" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">idx_cond = idx[:, -block_size:]</text>
+
+        <line x1="270" y1="394" x2="270" y2="412" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ④ 前向 -->
+        <rect x="95" y="412" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="430" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">④ 前向：model(idx_cond)</text>
+        <text x="270" y="447" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">只取最后位置 logits[:, -1, :] · 65 维</text>
+
+        <line x1="270" y1="456" x2="270" y2="474" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ⑤ 温度 topk -->
+        <rect x="95" y="474" width="350" height="52" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="494" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">⑤ ÷ temperature · 可选 top_k 截断</text>
+        <text x="270" y="512" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">logits/T → 冷门置 -inf → Softmax → probs</text>
+
+        <line x1="270" y1="526" x2="270" y2="544" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ⑥ 采样 -->
+        <rect x="95" y="544" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="562" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">⑥ 按概率抽 1 个字</text>
+        <text x="270" y="579" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">multinomial · 不是永远 argmax</text>
+
+        <line x1="270" y1="588" x2="270" y2="606" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ⑦ 拼接 -->
+        <rect x="95" y="606" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="624" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">⑦ 拼到末尾：idx = cat(idx, 新字)</text>
+        <text x="270" y="641" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">新字变成下一轮的「前文」</text>
+
+        <!-- 回环 -->
+        <path d="M95 628 L48 628 L48 312 L130 312" fill="none" stroke="#0f766e" stroke-width="2" marker-end="url(#g-arrow-teal)"/>
+        <text x="34" y="470" text-anchor="middle" font-size="12" fill="#0f766e" font-weight="600" font-family="Source Sans 3, sans-serif" transform="rotate(-90 34 470)">未满则继续</text>
+
+        <!-- 内环结束出口 -->
+        <line x1="270" y1="650" x2="270" y2="690" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+        <text x="282" y="674" text-anchor="start" font-size="11" fill="#64748b" font-family="Source Sans 3, sans-serif">满了 → return idx</text>
+
+        <!-- ⑧ decode -->
+        <rect x="100" y="690" width="340" height="48" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.8"/>
+        <text x="270" y="710" text-anchor="middle" font-size="14" fill="#0c4a6e" font-weight="600" font-family="Source Sans 3, sans-serif">⑧ decode → print 文本</text>
+        <text x="270" y="728" text-anchor="middle" font-size="11" fill="#0369a1" font-family="IBM Plex Mono, monospace">可再跑 num_samples 条（换随机）</text>
+
+        <line x1="270" y1="738" x2="270" y2="760" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+        <rect x="150" y="760" width="240" height="40" rx="20" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+        <text x="270" y="785" text-anchor="middle" font-size="13" fill="#334155" font-weight="600" font-family="Source Sans 3, sans-serif">终端看到莎士比亚腔</text>
+      </svg>
+      <ul class="loop-legend">
+        <li><i class="lg-main" aria-hidden="true"></i>sample.py 装载 / 编码</li>
+        <li><i class="lg-train" aria-hidden="true"></i>generate 内环（吐字）</li>
+        <li><i class="lg-branch" aria-hidden="true"></i>decode 打印</li>
+        <li><i class="lg-end" aria-hidden="true"></i>结束</li>
+      </ul>
+    </figure>

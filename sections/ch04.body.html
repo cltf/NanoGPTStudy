@@ -1,0 +1,293 @@
+<div class="card tip">
+  <div class="label">本章导读</div>
+  <p style="margin:0">本章是把前三章零件装进 <code>train.py</code> 的「总装配图」。请对照源码阅读：循环外初始化、while True 内取数 / 前向 / 反向 / 评估 / 存盘，以及终端两行日志各自对应哪一段代码。</p>
+</div>
+
+<div class="card tip">
+      <div class="label">建议对照方式</div>
+      <p style="margin:0">左边打开本页，右边打开 <code>nanoGPT/train.py</code>，按下面编号在源码里搜索关键词。</p>
+    </div>
+
+    <h2 id="s4-1">4.1 总览：while True 里发生了什么</h2>
+
+    <figure class="loop-diagram" aria-label="train.py 主训练循环流程图">
+      <p class="loop-title">train.py · while True 主循环</p>
+      <svg viewBox="0 0 520 780" role="img" aria-labelledby="loop-svg-title loop-svg-desc">
+        <title id="loop-svg-title">train.py while True 训练循环</title>
+        <desc id="loop-svg-desc">从设学习率开始，可选评估存盘，再做前向反向更新，打日志后判断是否结束或回到开头。</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a6a7a"/>
+          </marker>
+          <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f766e"/>
+          </marker>
+        </defs>
+
+        <!-- 启动（循环外） -->
+        <rect x="140" y="8" width="240" height="44" rx="22" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="260" y="28" text-anchor="middle" font-size="12" fill="#64748b" font-family="IBM Plex Mono, monospace">循环外 · 只做一次</text>
+        <text x="260" y="44" text-anchor="middle" font-size="13" fill="#1a2332" font-family="Source Sans 3, sans-serif">配置 → 模型 → AdamW → 首个 batch</text>
+
+        <line x1="260" y1="52" x2="260" y2="78" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+        <!-- 入口锚点 while True -->
+        <rect x="155" y="78" width="210" height="40" rx="8" fill="#0f766e"/>
+        <text x="260" y="103" text-anchor="middle" font-size="15" fill="#fff" font-weight="600" font-family="IBM Plex Mono, monospace">while True</text>
+
+        <line x1="260" y1="118" x2="260" y2="142" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+        <!-- ① 设 lr -->
+        <rect x="120" y="142" width="280" height="52" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.8"/>
+        <text x="260" y="164" text-anchor="middle" font-size="14" fill="#134e4a" font-weight="600" font-family="Source Sans 3, sans-serif">① 设学习率</text>
+        <text x="260" y="182" text-anchor="middle" font-size="12" fill="#5a6a7a" font-family="IBM Plex Mono, monospace">lr = get_lr(iter_num)</text>
+
+        <line x1="260" y1="194" x2="260" y2="218" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+        <!-- ② 菱形：要不要评估 -->
+        <polygon points="260,218 360,258 260,298 160,258" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.8"/>
+        <text x="260" y="252" text-anchor="middle" font-size="13" fill="#0c4a6e" font-weight="600" font-family="Source Sans 3, sans-serif">② 到评估点？</text>
+        <text x="260" y="268" text-anchor="middle" font-size="11" fill="#0369a1" font-family="IBM Plex Mono, monospace">% eval_interval == 0</text>
+
+        <!-- 右分支：评估 -->
+        <line x1="360" y1="258" x2="430" y2="258" stroke="#0369a1" stroke-width="1.6" marker-end="url(#arrow)"/>
+        <text x="392" y="250" text-anchor="middle" font-size="11" fill="#0369a1" font-family="Source Sans 3, sans-serif">是</text>
+        <rect x="392" y="278" width="116" height="78" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+        <text x="450" y="300" text-anchor="middle" font-size="12" fill="#0c4a6e" font-weight="600" font-family="Source Sans 3, sans-serif">estimate_loss</text>
+        <text x="450" y="318" text-anchor="middle" font-size="11" fill="#0369a1" font-family="Source Sans 3, sans-serif">记曲线点</text>
+        <text x="450" y="336" text-anchor="middle" font-size="11" fill="#0369a1" font-family="Source Sans 3, sans-serif">可能存 ckpt</text>
+        <path d="M450 356 L450 390 L300 390" fill="none" stroke="#0369a1" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+
+        <!-- 否 → 继续 -->
+        <line x1="260" y1="298" x2="260" y2="330" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#arrow)"/>
+        <text x="248" y="318" text-anchor="end" font-size="11" fill="#5a6a7a" font-family="Source Sans 3, sans-serif">否</text>
+
+        <!-- ③ 训练一步（核心盒子） -->
+        <rect x="95" y="330" width="330" height="168" rx="12" fill="#fff7ed" stroke="#b45309" stroke-width="1.8"/>
+        <text x="260" y="354" text-anchor="middle" font-size="14" fill="#9a3412" font-weight="600" font-family="Source Sans 3, sans-serif">③ 训练一步（每圈必做）</text>
+        <!-- 子步骤 -->
+        <rect x="115" y="368" width="290" height="28" rx="6" fill="#ffedd5"/>
+        <text x="260" y="387" text-anchor="middle" font-size="12" fill="#7c2d12" font-family="IBM Plex Mono, monospace">model(X,Y) → loss</text>
+        <line x1="260" y1="396" x2="260" y2="408" stroke="#b45309" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="115" y="408" width="290" height="28" rx="6" fill="#ffedd5"/>
+        <text x="260" y="427" text-anchor="middle" font-size="12" fill="#7c2d12" font-family="IBM Plex Mono, monospace">backward() 写 .grad</text>
+        <line x1="260" y1="436" x2="260" y2="448" stroke="#b45309" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="115" y="448" width="290" height="36" rx="6" fill="#ffedd5"/>
+        <text x="260" y="464" text-anchor="middle" font-size="12" fill="#7c2d12" font-family="IBM Plex Mono, monospace">clip → AdamW.step</text>
+        <text x="260" y="478" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">→ zero_grad</text>
+
+        <line x1="260" y1="498" x2="260" y2="522" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+        <!-- ④ 日志 -->
+        <rect x="120" y="522" width="280" height="52" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.8"/>
+        <text x="260" y="544" text-anchor="middle" font-size="14" fill="#134e4a" font-weight="600" font-family="Source Sans 3, sans-serif">④ 打日志 · 计数 +1</text>
+        <text x="260" y="562" text-anchor="middle" font-size="12" fill="#5a6a7a" font-family="IBM Plex Mono, monospace">iter loss · iter_num += 1</text>
+
+        <line x1="260" y1="574" x2="260" y2="598" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+        <!-- ⑤ 结束判断 -->
+        <polygon points="260,598 365,638 260,678 155,638" fill="#f1f5f9" stroke="#64748b" stroke-width="1.8"/>
+        <text x="260" y="632" text-anchor="middle" font-size="13" fill="#334155" font-weight="600" font-family="Source Sans 3, sans-serif">⑤ 超过 max_iters？</text>
+        <text x="260" y="650" text-anchor="middle" font-size="11" fill="#64748b" font-family="IBM Plex Mono, monospace">iter_num &gt; max_iters</text>
+
+        <!-- 否：回到 while -->
+        <path d="M155 638 L48 638 L48 98 L155 98" fill="none" stroke="#0f766e" stroke-width="2" marker-end="url(#arrow-teal)"/>
+        <text x="36" y="370" text-anchor="middle" font-size="12" fill="#0f766e" font-weight="600" font-family="Source Sans 3, sans-serif" transform="rotate(-90 36 370)">否 · 下一圈</text>
+
+        <!-- 是：结束画图 -->
+        <line x1="260" y1="678" x2="260" y2="708" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#arrow)"/>
+        <text x="272" y="698" text-anchor="start" font-size="11" fill="#64748b" font-family="Source Sans 3, sans-serif">是 · break</text>
+        <rect x="140" y="708" width="240" height="52" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+        <text x="260" y="730" text-anchor="middle" font-size="13" fill="#334155" font-weight="600" font-family="Source Sans 3, sans-serif">画 loss_curve.png</text>
+        <text x="260" y="748" text-anchor="middle" font-size="12" fill="#64748b" font-family="IBM Plex Mono, monospace">训练结束</text>
+      </svg>
+      <ul class="loop-legend">
+        <li><i class="lg-main" aria-hidden="true"></i>主路径（每圈）</li>
+        <li><i class="lg-branch" aria-hidden="true"></i>评估旁路（定期）</li>
+        <li><i class="lg-train" aria-hidden="true"></i>真正改权重</li>
+        <li><i class="lg-end" aria-hidden="true"></i>结束 / 画图</li>
+      </ul>
+    </figure>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">0</div>
+        <div><strong>启动一次</strong><span>读配置 → 建模型 → AdamW → 搬到 device（mps）</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div><strong>设学习率</strong><span><code>get_lr(iter_num)</code> → 写入 optimizer</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div><strong>定期评估</strong><span>每 <code>eval_interval</code> 步：train/val loss → 记曲线 → 可能存 ckpt</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div><strong>训练一步</strong><span>forward → backward → clip → AdamW step → zero_grad</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div><strong>打日志 / 计数</strong><span>打印 iter loss；<code>iter_num += 1</code>；超过 max_iters 则 break</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">5</div>
+        <div><strong>结束后画图</strong><span>matplotlib 保存 <code>loss_curve.png</code></span></div>
+      </div>
+    </div>
+
+    <h2 id="s4-2">4.2 步骤详解（人话版）</h2>
+    <p class="lead" style="font-size:1.05rem;margin-top:0">把上面那张循环图里的「橙色训练一步」拆开：先造题 → 做题打分 → 对照答案改卷 → 偶尔摸底考试 → 存档。</p>
+
+    <h3>A. get_batch：造训练样本</h3>
+    <div class="card tip">
+      <div class="label">人话</div>
+      <p style="margin:0 0 0.5rem">从莎士比亚长文里<strong>随机剪一小段</strong>当题目。</p>
+      <ul style="margin:0;padding-left:1.2rem">
+        <li><code>X</code> = 题目：给模型看的字符（例如 <code>To be or not to b</code>）</li>
+        <li><code>Y</code> = 标准答案：每个位置「下一个该是什么字」（整体比 X <strong>右移 1 格</strong>）</li>
+        <li>一次不只剪 1 段，而是一次拿 <code>batch_size</code> 段一起练（如 64 段），每段长 <code>block_size</code>（如 256 字）</li>
+      </ul>
+    </div>
+    <pre><code>x = data[i : i+block_size]
+y = data[i+1 : i+1+block_size]   # 右移 1 位 = 下一字符</code></pre>
+    <div class="example-box">
+      <span class="caption">迷你例子（字符级）</span>
+      原文片段：H e l l o<br>
+      X（题）：H e l l<br>
+      Y（答）：e l l o　← 每个位置的「下一个字」
+    </div>
+    <p class="muted">形状约 <code>(64, 256)</code>。细节见 <a href="ch01.html">第1章</a>。</p>
+
+    <h3>B. 前向：model(X, Y)</h3>
+    <div class="card tip">
+      <div class="label">人话</div>
+      <p style="margin:0 0 0.5rem"><strong>做题 + 当场打分</strong>。模型看 X，猜每个位置的下一个字，再跟 Y 比，算出一个总分 <code>loss</code>。</p>
+      <ul style="margin:0;padding-left:1.2rem">
+        <li>猜得越准 → loss 越小；瞎猜 → loss 大</li>
+        <li>内部流水线：Embedding → 好几层 Block → lm_head（<a href="ch02.html">第2章</a>）</li>
+        <li>终端里 <code>iter … loss …</code> 打印的，基本就是这一步的分数</li>
+      </ul>
+    </div>
+    <pre><code>logits, loss = model(X, Y)</code></pre>
+    <ul>
+      <li><code>logits</code>：每个位置对「词表里每个字」打的原始分（还没变成概率）</li>
+      <li><code>loss</code>：平均 CrossEntropy——「猜错有多惨」的一个数（<a href="ch01.html">第1章</a>）</li>
+      <li class="muted">若开了梯度累积，代码里会先除一下再乘回来，你当「同一份分数的记账技巧」即可</li>
+    </ul>
+
+    <h3>C. 反向与更新（第3章）</h3>
+    <div class="card tip">
+      <div class="label">人话 · 一行一句</div>
+      <p style="margin:0 0 0.65rem">分数出来了还没改模型。下面这几行才是<strong>对照错题改参数</strong>：</p>
+      <ol style="margin:0;padding-left:1.25rem">
+        <li style="margin-bottom:0.4rem"><code>…backward()</code> → 回放错题：每个旋钮该怎么拧，写在 <code>.grad</code> 上</li>
+        <li style="margin-bottom:0.4rem"><code>clip_grad_norm_</code> → 拧法太猛就限速，防止一步拧飞</li>
+        <li style="margin-bottom:0.4rem"><code>scaler.step(optimizer)</code> → AdamW <strong>真正改权重</strong>（你 Mac 上 MPS/FP32 时，scaler 几乎等于直接 step）</li>
+        <li style="margin-bottom:0.4rem"><code>scaler.update()</code> → 混合精度记账用的；FP32 时可当「顺手维护一下」</li>
+        <li><code>optimizer.zero_grad(…)</code> → 撕掉旧纸条，下一圈重新写，别和下一题粘在一起</li>
+      </ol>
+    </div>
+    <pre><code>scaler.scale(loss).backward()
+# clip_grad_norm_ ...
+scaler.step(optimizer)
+scaler.update()
+optimizer.zero_grad(set_to_none=True)</code></pre>
+    <p class="muted">更完整的下山比喻见 <a href="ch03.html#backprop-plain">第3章通俗版</a>。</p>
+
+    <h3>D. estimate_loss：评估时发生什么</h3>
+    <div class="card tip">
+      <div class="label">人话</div>
+      <p style="margin:0 0 0.5rem">训练是「刷题改卷」；评估是<strong>摸底考试</strong>：不动旋钮，只量现在水平。</p>
+      <ul style="margin:0;padding-left:1.2rem">
+        <li>从训练集、验证集各抽好多小段，算平均 loss</li>
+        <li><code>@torch.no_grad()</code>：不建「怎么拧」的计算图——考试不改卷，省内存也更快</li>
+        <li><code>model.eval()</code>：关掉训练时的随机扰动（如 Dropout），分数更稳</li>
+        <li>考完 <code>model.train()</code> 切回刷题模式；你改过的代码会把分数记进列表，最后画成曲线</li>
+      </ul>
+    </div>
+    <pre><code>@torch.no_grad()
+def estimate_loss():
+    model.eval()
+    # 对 train / val 各抽 eval_iters 个 batch，平均 loss
+    model.train()
+    return out</code></pre>
+
+    <h3>E. 存 checkpoint</h3>
+    <div class="card tip">
+      <div class="label">人话</div>
+      <p style="margin:0 0 0.5rem">摸底考得好（val loss 创新低）就<strong>存档</strong>：把当前模型拍成快照 <code>ckpt.pt</code>。</p>
+      <ul style="margin:0;padding-left:1.2rem">
+        <li>里面有：模型权重、优化器状态、训练到第几步、最好的 val loss、配置</li>
+        <li>以后 <code>sample.py</code> 生成莎士比亚腔，读的就是这份存档（<a href="ch05.html">第5章</a>）</li>
+        <li>中途挂了也能 <code>resume</code> 接着练，不用从零开始</li>
+      </ul>
+    </div>
+    <p class="muted">通常要求 <code>iter_num &gt; 0</code> 才存，避免第 0 步还没练就覆盖掉好存档。</p>
+
+    <h2 id="s4-3">4.3 终端两行日志分别是什么</h2>
+    <table>
+      <thead><tr><th>打印</th><th>频率</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>step N: train loss …, val loss …</code></td>
+          <td>每 <code>eval_interval</code>（如 250）</td>
+          <td>多 batch 平均后的评估指标；用来画曲线、存盘</td>
+        </tr>
+        <tr>
+          <td><code>iter N: loss …, time …ms</code></td>
+          <td>每 <code>log_interval</code>（如 10）</td>
+          <td>当前这一步的训练 loss（单次 batch，噪声更大）</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <section class="deep-dive" aria-label="概念与代码对照表">
+      <div class="deep-dive-head">
+        <span class="tag">Cheat Sheet</span>
+        <span>概念 ↔ 代码 ↔ 课程</span>
+      </div>
+      <div class="deep-dive-body">
+        <table>
+          <thead><tr><th>概念</th><th>代码位置</th><th>课程</th></tr></thead>
+          <tbody>
+            <tr><td>自回归 X/Y</td><td><code>get_batch</code></td><td>第1章</td></tr>
+            <tr><td>Embedding / Attn / MLP</td><td><code>model.py</code> GPT/Block</td><td>第2章</td></tr>
+            <tr><td>logits / CE loss</td><td><code>GPT.forward</code></td><td>第 1–2 课</td></tr>
+            <tr><td>梯度 / AdamW / lr</td><td><code>backward</code> / <code>configure_optimizers</code> / <code>get_lr</code></td><td>第3章</td></tr>
+            <tr><td>评估与曲线</td><td><code>estimate_loss</code> + matplotlib 段</td><td>本课</td></tr>
+            <tr><td>生成文本</td><td><code>sample.py</code> / <code>generate</code></td><td>第5章</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <h2 id="s4-4">4.4 完整训练命令在循环中的效果</h2>
+    <pre><code>python train.py config/train_shakespeare_char.py \
+  --device=mps --compile=False \
+  --n_layer=4 --n_head=4 --n_embd=128 --max_iters=1500</code></pre>
+    <ul>
+      <li>设备：每步张量在 MPS 上算</li>
+      <li>模型：4 层小 GPT，约 0.8M 参数</li>
+      <li>循环：<code>iter_num</code> 从 0 加到 1500 后 <code>break</code></li>
+      <li>评估：0, 250, 500, …, 1500 共多个点写入曲线</li>
+    </ul>
+
+<h2 id="s4-expand">4.5 扩展：自己给 train.py 做「阅读标注」</h2>
+<p>建议在编辑器里给 <code>train.py</code> 加五类书签（不必改逻辑，只为导航）：</p>
+<ol>
+  <li>配置与模型构建</li>
+  <li><code>get_batch</code></li>
+  <li>前向 <code>model(X, Y)</code> 与 <code>loss</code></li>
+  <li><code>backward</code> / <code>clip</code> / <code>step</code></li>
+  <li><code>estimate_loss</code> 与 checkpoint</li>
+</ol>
+<p>能不看笔记、只靠书签把一圈训练讲下来，第 4 章才算过关。</p>
+
+<h2 id="s4-quiz">自测题</h2>
+    <div class="quiz">
+      <p><strong>Q1：</strong>为什么评估要用 <code>torch.no_grad()</code>，而训练 step 不能？</p>
+      <p class="muted">参考：评估只需 loss 数值；训练需要梯度来更新参数。</p>
+      <p><strong>Q2：</strong><code>iter loss</code> 和 <code>step train/val loss</code> 哪个更适合判断「是否过拟合」？为什么？</p>
+      <p class="muted">参考：看 step 的 train vs val；单步 iter loss 噪声大且没有 val。</p>
+    </div>

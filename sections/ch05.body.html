@@ -1,0 +1,353 @@
+<div class="card tip">
+  <div class="label">本章导读</div>
+  <p style="margin:0">本章讲「训完之后怎么用」：生成路径、temperature、top-k，以及如何用 train/val 曲线判断过拟合。重点是建立判断力——<strong>生成难看不等于公式错，曲线分叉也不等于代码坏了</strong>。</p>
+</div>
+
+<div class="card tip">
+      <div class="label">配套脚本 / 命令</div>
+      <pre><code>cd nanoGPT &amp;&amp; source .venv/bin/activate
+python lessons/lesson5_sample_temp.py
+# 或用训好的权重真正续写：
+python sample.py --out_dir=out-shakespeare-char --device=mps</code></pre>
+    </div>
+
+    <h2 id="s5-1">5.1 生成在代码里怎么走</h2>
+    <p>外面是 <code>sample.py</code> 装载与打印；里面是 <code>model.generate</code> 一个字一个字往外吐。</p>
+
+    <figure class="loop-diagram" aria-label="sample.py 与 generate 生成流程图">
+      <p class="loop-title">sample.py → model.generate · 生成路径</p>
+      <svg viewBox="0 0 540 820" role="img" aria-labelledby="gen-svg-title gen-svg-desc">
+        <title id="gen-svg-title">生成代码流程图</title>
+        <desc id="gen-svg-desc">先加载 ckpt 与编码表，把 prompt 编成 id；再进入 generate 循环：截断上下文、前向取末位 logits、温度与 top-k、采样、拼回序列；最后解码打印。</desc>
+        <defs>
+          <marker id="g-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a6a7a"/>
+          </marker>
+          <marker id="g-arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f766e"/>
+          </marker>
+        </defs>
+
+        <!-- sample.py 外壳 -->
+        <rect x="70" y="8" width="400" height="36" rx="8" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="270" y="31" text-anchor="middle" font-size="13" fill="#64748b" font-weight="600" font-family="IBM Plex Mono, monospace">sample.py · 外壳（只做一次 / 每条样本）</text>
+
+        <line x1="270" y1="44" x2="270" y2="62" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <rect x="100" y="62" width="340" height="48" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.8"/>
+        <text x="270" y="82" text-anchor="middle" font-size="14" fill="#134e4a" font-weight="600" font-family="Source Sans 3, sans-serif">① 加载 ckpt.pt → 建 GPT → eval()</text>
+        <text x="270" y="100" text-anchor="middle" font-size="11" fill="#5a6a7a" font-family="IBM Plex Mono, monospace">读 meta.pkl 得到 encode / decode</text>
+
+        <line x1="270" y1="110" x2="270" y2="128" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <rect x="100" y="128" width="340" height="48" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="1.8"/>
+        <text x="270" y="148" text-anchor="middle" font-size="14" fill="#134e4a" font-weight="600" font-family="Source Sans 3, sans-serif">② prompt → encode → 张量 x</text>
+        <text x="270" y="166" text-anchor="middle" font-size="11" fill="#5a6a7a" font-family="IBM Plex Mono, monospace">默认 start="\\n" · shape (1, t)</text>
+
+        <line x1="270" y1="176" x2="270" y2="194" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <rect x="120" y="194" width="300" height="40" rx="8" fill="#0f766e"/>
+        <text x="270" y="219" text-anchor="middle" font-size="14" fill="#fff" font-weight="600" font-family="IBM Plex Mono, monospace">torch.no_grad() · 不改权重</text>
+
+        <line x1="270" y1="234" x2="270" y2="256" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+
+        <!-- generate 内环标题 -->
+        <rect x="55" y="256" width="430" height="470" rx="14" fill="#fff7ed" stroke="#b45309" stroke-width="1.8"/>
+        <text x="270" y="280" text-anchor="middle" font-size="14" fill="#9a3412" font-weight="600" font-family="Source Sans 3, sans-serif">model.generate · 内环（重复 max_new_tokens 次）</text>
+
+        <rect x="130" y="294" width="280" height="36" rx="8" fill="#b45309"/>
+        <text x="270" y="317" text-anchor="middle" font-size="13" fill="#fff" font-weight="600" font-family="IBM Plex Mono, monospace">for _ in range(max_new_tokens)</text>
+
+        <line x1="270" y1="330" x2="270" y2="350" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ③ 裁剪 -->
+        <rect x="95" y="350" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="368" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">③ 太长就裁：只留最近 block_size</text>
+        <text x="270" y="385" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">idx_cond = idx[:, -block_size:]</text>
+
+        <line x1="270" y1="394" x2="270" y2="412" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ④ 前向 -->
+        <rect x="95" y="412" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="430" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">④ 前向：model(idx_cond)</text>
+        <text x="270" y="447" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">只取最后位置 logits[:, -1, :] · 65 维</text>
+
+        <line x1="270" y1="456" x2="270" y2="474" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ⑤ 温度 topk -->
+        <rect x="95" y="474" width="350" height="52" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="494" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">⑤ ÷ temperature · 可选 top_k 截断</text>
+        <text x="270" y="512" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">logits/T → 冷门置 -inf → Softmax → probs</text>
+
+        <line x1="270" y1="526" x2="270" y2="544" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ⑥ 采样 -->
+        <rect x="95" y="544" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="562" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">⑥ 按概率抽 1 个字</text>
+        <text x="270" y="579" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">multinomial · 不是永远 argmax</text>
+
+        <line x1="270" y1="588" x2="270" y2="606" stroke="#b45309" stroke-width="1.5" marker-end="url(#g-arrow)"/>
+
+        <!-- ⑦ 拼接 -->
+        <rect x="95" y="606" width="350" height="44" rx="8" fill="#ffedd5" stroke="#b45309" stroke-width="1.4"/>
+        <text x="270" y="624" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600" font-family="Source Sans 3, sans-serif">⑦ 拼到末尾：idx = cat(idx, 新字)</text>
+        <text x="270" y="641" text-anchor="middle" font-size="11" fill="#b45309" font-family="IBM Plex Mono, monospace">新字变成下一轮的「前文」</text>
+
+        <!-- 回环 -->
+        <path d="M95 628 L48 628 L48 312 L130 312" fill="none" stroke="#0f766e" stroke-width="2" marker-end="url(#g-arrow-teal)"/>
+        <text x="34" y="470" text-anchor="middle" font-size="12" fill="#0f766e" font-weight="600" font-family="Source Sans 3, sans-serif" transform="rotate(-90 34 470)">未满则继续</text>
+
+        <!-- 内环结束出口 -->
+        <line x1="270" y1="650" x2="270" y2="690" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+        <text x="282" y="674" text-anchor="start" font-size="11" fill="#64748b" font-family="Source Sans 3, sans-serif">满了 → return idx</text>
+
+        <!-- ⑧ decode -->
+        <rect x="100" y="690" width="340" height="48" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.8"/>
+        <text x="270" y="710" text-anchor="middle" font-size="14" fill="#0c4a6e" font-weight="600" font-family="Source Sans 3, sans-serif">⑧ decode → print 文本</text>
+        <text x="270" y="728" text-anchor="middle" font-size="11" fill="#0369a1" font-family="IBM Plex Mono, monospace">可再跑 num_samples 条（换随机）</text>
+
+        <line x1="270" y1="738" x2="270" y2="760" stroke="#5a6a7a" stroke-width="1.6" marker-end="url(#g-arrow)"/>
+        <rect x="150" y="760" width="240" height="40" rx="20" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+        <text x="270" y="785" text-anchor="middle" font-size="13" fill="#334155" font-weight="600" font-family="Source Sans 3, sans-serif">终端看到莎士比亚腔</text>
+      </svg>
+      <ul class="loop-legend">
+        <li><i class="lg-main" aria-hidden="true"></i>sample.py 装载 / 编码</li>
+        <li><i class="lg-train" aria-hidden="true"></i>generate 内环（吐字）</li>
+        <li><i class="lg-branch" aria-hidden="true"></i>decode 打印</li>
+        <li><i class="lg-end" aria-hidden="true"></i>结束</li>
+      </ul>
+    </figure>
+
+    <div class="card tip">
+      <div class="label">和训练的关键</div>
+      <p style="margin:0">训练时 Causal Mask 保证「只能看左边」；生成时每一步也只拿已经吐出的前文再猜下一个字——同一套自回归，只是<strong>不算 loss、不改权重</strong>（<code>no_grad</code>）。</p>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div><strong>给定前文 token</strong><span>例如从换行 <code>\n</code> 开始，或你给的 prompt</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div><strong>前向只取最后位置 logits</strong><span>得到 65 维分数</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div><strong>temperature / top-k 调整分布</strong><span>见下文</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div><strong>按概率采样一个字符</strong><span><code>multinomial</code>，不是永远取 argmax</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">5</div>
+        <div><strong>拼到序列末尾，重复</strong><span>直到 <code>max_new_tokens</code></span></div>
+      </div>
+    </div>
+
+    <h2 id="s5-2">5.2 Temperature（温度）</h2>
+    <div class="card tip">
+      <div class="label">人话 · 调「大胆程度」的旋钮</div>
+      <p style="margin:0 0 0.65rem">模型刚算出「下一个字」的分数表（logits）。温度 <code>T</code> 决定：抽字时<strong>有多敢赌冷门</strong>。</p>
+      <div class="example-box" style="margin:0 0 0.65rem">
+        <span class="caption">点菜类比</span>
+        分数表 ≈ 菜单上每道菜的推荐分<br>
+        <strong>T 很小</strong>：几乎永远点最高分那道 → 稳、但容易重复<br>
+        <strong>T = 1</strong>：按推荐分正常抽签<br>
+        <strong>T 很大</strong>：冷门菜也常被点到 → 花样多，也更容易乱七八糟
+      </div>
+      <p style="margin:0">代码里就是把分数除以 T 再 Softmax：<strong>除得越大（T 越小），高低分差距被放大，越爱选第一名。</strong></p>
+    </div>
+    <div class="math">$$\text{logits}' = \frac{\text{logits}}{T},\quad P=\mathrm{softmax}(\text{logits}')$$</div>
+    <table>
+      <thead><tr><th>$T$</th><th>效果</th><th>你看到的文字</th></tr></thead>
+      <tbody>
+        <tr><td>很小（如 0.2）</td><td>几乎总选最高分</td><td>保守、重复、「像背课文」</td></tr>
+        <tr><td>$T=1$</td><td>按原分布抽</td><td>按模型学到的概率来</td></tr>
+        <tr><td>$T&gt;1$（如 1.5）</td><td>分布更平</td><td>更跳脱，也可能更胡言</td></tr>
+      </tbody>
+    </table>
+    <p><code>sample.py</code> 默认 <code>temperature=0.8</code>：比 1 略保守一点，少一点瞎蹦。</p>
+
+    <h2 id="s5-3">5.3 Top-k</h2>
+    <div class="card tip">
+      <div class="label">人话 · 先划掉离谱选项再抽</div>
+      <p style="margin:0 0 0.5rem">词表有很多字。有的字模型觉得「几乎不可能」，但概率不是绝对 0——万一抽中就出怪字。</p>
+      <p style="margin:0 0 0.5rem"><strong>Top-k</strong> = 只留推荐分最高的前 k 名，其余直接淘汰（logits 改成 $-\infty$，Softmax 后概率变 0），再在这 k 个里按概率抽。</p>
+      <div class="example-box" style="margin:0">
+        <span class="caption">抽奖类比</span>
+        本来 65 张票都能中 → 先扔掉垫底的，只留前 k 张再抽 → 少中「离谱奖」
+      </div>
+    </div>
+    <ul>
+      <li>作用：挡住极不可能的怪字符</li>
+      <li>莎士比亚字符级词表只有 <strong>65</strong> 个，默认 <code>top_k=200</code> → 比 65 还大 → <strong>等于几乎没截断</strong>；词表上万的大模型上更有用</li>
+    </ul>
+
+    <h2 id="s5-4">5.4 如何读 train / val loss 曲线</h2>
+    <div class="card tip">
+      <div class="label">人话 · 先记住两句话</div>
+      <ul style="margin:0;padding-left:1.2rem">
+        <li><strong>loss 越小越好</strong>（猜下一字猜得越准）</li>
+        <li>图上有两条线：<strong>蓝/ train = 练习册分数</strong>；<strong>橙/ val = 摸底考分数</strong>。选存档时盯摸底考，别只盯练习册。</li>
+      </ul>
+    </div>
+
+    <div class="card tip" id="what-is-overfitting">
+      <div class="label">什么是过拟合？（背题 vs 学会）</div>
+      <p style="margin:0 0 0.65rem"><strong>过拟合</strong> = 练习册越做越满分，换一套没见过的摸底卷反而更差 → 多半在<strong>背题</strong>，不是学会规律。</p>
+      <table style="margin:0.5rem 0">
+        <thead><tr><th></th><th>train loss</th><th>val loss</th></tr></thead>
+        <tbody>
+          <tr><td>像什么</td><td>练习册错得少不少</td><td>摸底考错得少不少</td></tr>
+          <tr><td>健康学习</td><td colspan="2">两条线<strong>一起往下</strong></td></tr>
+          <tr><td>过拟合信号</td><td>还在往下 ↓</td><td>掉头往上 ↑</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:0.65rem 0"><strong>为什么容易发生？</strong>模型够大、训得够久，会把训练文本的细节甚至噪声也背下来；这些对练习册有用，换一段莎士比亚（验证集）就帮不上忙。语料小时特别常见。</p>
+      <p style="margin:0 0 0.35rem"><strong>怎么办（直觉）：</strong></p>
+      <ul style="margin:0;padding-left:1.2rem">
+        <li><strong>早停</strong>：摸底考最好时停 / 存那个 ckpt</li>
+        <li><strong>正则</strong>：dropout、AdamW 的 weight decay（别胀太大）</li>
+        <li><strong>数据更多样</strong>，或模型略小一点</li>
+      </ul>
+      <p style="margin:0.75rem 0 0" class="takeaway">一句话：过拟合 = 练得太专、考得变差。配置「只在 val 变好时存盘」，就是为了留泛化最好的那一版。</p>
+    </div>
+
+    <table>
+      <thead><tr><th></th><th>train loss</th><th>val loss</th></tr></thead>
+      <tbody>
+        <tr><td>全称</td><td>训练损失</td><td>验证损失</td></tr>
+        <tr><td>数据从哪来</td><td><strong>训练集</strong>（会拿去改权重）</td><td><strong>验证集</strong>（只打分，不改权重）</td></tr>
+        <tr><td>在问什么</td><td>「练习题熟不熟？」</td><td>「换卷还会不会？」</td></tr>
+        <tr><td>公式一样吗</td><td colspan="2">一样，都是平均 Cross-Entropy；差别只在数据从哪抽</td></tr>
+      </tbody>
+    </table>
+
+    <div class="compare">
+      <div class="col prob">
+        <div class="kicker">健康学习</div>
+        <strong>两条线一起下降</strong>
+        <p>在学规律；练习分略好于摸底分很正常。</p>
+      </div>
+      <div class="col like">
+        <div class="kicker">过拟合</div>
+        <strong>练习还在降，摸底掉头升</strong>
+        <p>背熟了训练文本，换一段反而更差。</p>
+      </div>
+    </div>
+
+    <h3>你本机跑出的两张真实曲线</h3>
+
+    <figure class="figure">
+      <img src="images/loss_curve_v1_lite.png" alt="轻量版 1500 步 train/val loss 曲线" />
+      <figcaption>
+        <strong>图 A · 轻量快速版</strong>（约 0.80M 参数，n_layer=4 / n_embd=128，max_iters=1500）<br>
+        起点 ≈ 4.19（接近随机瞎猜 $\log 65$）；终点 train ≈ 1.59、val ≈ 1.78。<br>
+        <strong>解读：</strong>两条线<strong>一起往下走</strong>，train 略低于 val → 正常学习，尚未明显过拟合。适合用来搞懂训练链路。
+        原文件：<code>nanoGPT/out-shakespeare-char/loss_curve.png</code>
+      </figcaption>
+    </figure>
+
+    <figure class="figure">
+      <img src="images/loss_curve_v2_full.png" alt="加强版 5000 步 train/val loss 曲线，可见过拟合" />
+      <figcaption>
+        <strong>图 B · 加强版</strong>（约 10.65M 参数，默认 6 层 / n_embd=384，max_iters=5000）<br>
+        原文件：<code>nanoGPT/out-shakespeare-char-v2/loss_curve.png</code>
+      </figcaption>
+    </figure>
+
+    <section class="deep-dive theme-loss" aria-label="图B分阶段解读">
+      <div class="deep-dive-head">
+        <span class="tag">读图 B · 人话</span>
+        <span>加强版像一本「先学会、再背题」的日记</span>
+      </div>
+      <div class="deep-dive-body">
+        <ul class="chain">
+          <li><strong>开头（0→~500）：</strong>两条线一起从 ~4.2 掉到 ~2 → 「开窍了」，在学真规律</li>
+          <li><strong>中段（~1500–2000）：</strong>橙线（摸底）掉到最低约 <strong>1.5</strong> → 往往<strong>最好用</strong>的存档就在这附近</li>
+          <li><strong>后半（2000→5000）：</strong>蓝线继续降到 ~0.6（练习越来越满分）；橙线慢慢升到 ~1.7（摸底变差）→ <strong>开始背题</strong></li>
+        </ul>
+        <p class="takeaway">后半段 train↓ val↑ <strong>不是程序坏了</strong>，是该早停 / 用摸底最好时的 ckpt，别用练习分最低那一刻。</p>
+      </div>
+    </section>
+
+    <div class="card warn">
+      <div class="label">莎士比亚小数据很容易过拟合</div>
+      <p style="margin:0">书就那么厚，模型再大、再多刷几千遍，摸底分往往先好后差。所以配置常写：只在 val 变好时存盘——尽量留「泛化最好」的那一版。</p>
+    </div>
+
+    <div class="card tip">
+      <div class="label">看图口诀</div>
+      <ul style="margin:0.35rem 0 0;padding-left:1.2rem">
+        <li>练习分下降 ≠ 一定更好用</li>
+        <li>更关心<strong>摸底分（val）</strong>和采样读起来顺不顺</li>
+        <li>图 B 后半：练习↓ 摸底↑ = 过拟合</li>
+      </ul>
+    </div>
+
+    <table>
+      <thead><tr><th>曲线长什么样</th><th>多半是什么</th><th>可以试什么</th></tr></thead>
+      <tbody>
+        <tr><td>两条一起降（图 A）</td><td>正常学习</td><td>可再训一阵观察</td></tr>
+        <tr><td>练习↓ 摸底↑（图 B 后半）</td><td>过拟合</td><td>早停、dropout、模型小点、数据多点</td></tr>
+        <tr><td>长期晃、不往下</td><td>步子/batch/模型不搭</td><td>调 lr、batch，查数据</td></tr>
+        <tr><td>一直贴在 $\log 65$ 附近</td><td>几乎没在学</td><td>查 device、代码、学习率是不是 0</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s5-5">5.5 生成质量差 ≠ 训练公式错</h2>
+    <div class="card tip">
+      <div class="label">人话 · 别因为「写得傻」就怀疑整条链路</div>
+      <p style="margin:0 0 0.65rem">你采样出来常有角色名、换行，但单词拼得怪怪的——对<strong>字符级小模型 + 短训</strong>来说，这很正常，不代表 loss / 反向传播写错了。</p>
+      <ul style="margin:0;padding-left:1.2rem">
+        <li>它学的是「下一个<strong>字符</strong>更像谁」，不是读懂剧情的「大脑」</li>
+        <li>轻量版大约 <strong>0.8M</strong> 参数，跟 ChatGPT 差好几个数量级</li>
+        <li>本课目标：搞懂<strong>训练→存档→吐字</strong>这条链路，不是做出能聊天的产品</li>
+      </ul>
+    </div>
+    <div class="example-box">
+      <span class="caption">预期心态</span>
+      能看出莎士比亚腔、有时像台词 → 已经说明链路通了<br>
+      拼写不稳、剧情不通 → 规模和数据还不够，不是公式废了
+    </div>
+    <p class="takeaway" style="border-left:4px solid var(--accent);padding-left:0.9rem;background:#f0fdfa;border-radius:0 8px 8px 0;padding:0.55rem 0.75rem">工业大模型：还是 next-token + CrossEntropy；差别在数据量、分词、模型规模、训多久和工程，不在「换了一套完全不同的数学」。</p>
+
+    <section class="deep-dive theme-loss" aria-label="五课地图">
+      <div class="deep-dive-head">
+        <span class="tag">Map</span>
+        <span>五课知识地图（学完可以回头对照）</span>
+      </div>
+      <div class="deep-dive-body">
+        <table>
+          <thead><tr><th>课</th><th>核心问题</th><th>你带走的一句话</th></tr></thead>
+          <tbody>
+            <tr><td><a href="ch01.html">1</a></td><td>训练在优化什么？</td><td>最大化似然 = 最小化 CE/NLL</td></tr>
+            <tr><td><a href="ch02.html">2</a></td><td>模型内部怎么算？</td><td>Emb → Attn/MLP → logits</td></tr>
+            <tr><td><a href="ch03.html">3</a></td><td>参数怎么更新？</td><td>backward + AdamW + lr 调度</td></tr>
+            <tr><td><a href="ch04.html">4</a></td><td>代码怎么串起来？</td><td>train.py 的 while 循环</td></tr>
+            <tr><td><a href="ch05.html">5</a></td><td>训完怎么说话 / 怎么读曲线？</td><td>采样 + temperature；盯 val 防过拟合</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+<h2 id="s5-expand">5.6 扩展：采样参数的调试清单</h2>
+<p>生成效果不理想时，按这个顺序排查更省时间：</p>
+<ol>
+  <li>Loss 是否已从 ~4.1 明显下降？（没学会先别怪采样）</li>
+  <li>是否过拟合？（val 已升，可回退更好 checkpoint）</li>
+  <li>temperature 是否极端？（先回到 0.8～1.0）</li>
+  <li>top-k 是否过小/过大？</li>
+  <li>prompt 是否太短或超出模型能力（小模型字符级剧本）</li>
+</ol>
+<p>把「模型能力」和「解码策略」分开看，是使用一切生成式模型的基本功。</p>
+
+<h2 id="s5-quiz">自测题</h2>
+    <div class="quiz">
+      <p><strong>Q1：</strong>把 temperature 从 0.8 改成 0.2，生成文本通常会怎样变？</p>
+      <p class="muted">参考：更确定、更重复，多样性下降。</p>
+      <p><strong>Q2：</strong>若 train loss 很低但 val loss 很高，采样时可能出现什么现象？</p>
+      <p class="muted">参考：可能很像训练集的片段（背诵），换个开头就崩；泛化差。</p>
+    </div>

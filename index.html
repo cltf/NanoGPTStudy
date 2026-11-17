@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>大模型训练入门</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+:root {
+  --llm-bg: #f6f7f9;
+  --llm-sidebar: #f6f7f9;
+  --llm-ink: #15202b;
+  --llm-muted: #6b7785;
+  --llm-line: #e2e6eb;
+  --llm-active-bg: #e8eef3;
+  --llm-accent: #3db8a9;
+  --llm-accent-ink: #0d3d38;
+}
+body.llm-book { background: var(--llm-bg) !important; color: var(--llm-ink); font-size: 17px; line-height: 1.75; }
+body.llm-book a { color: #0f5c54; }
+body.llm-book a:hover { color: var(--llm-ink); }
+.llm-shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
+.llm-sidebar {
+  position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+  padding: 1.25rem 1rem 1.5rem; border-right: 1px solid var(--llm-line);
+  background: var(--llm-sidebar); display: flex; flex-direction: column; gap: 0.85rem;
+}
+.llm-back { color: var(--llm-muted) !important; text-decoration: none; font-size: 0.88rem; }
+.llm-back:hover { color: var(--llm-ink) !important; }
+.llm-toc-label { font-size: 0.78rem; font-weight: 600; color: var(--llm-muted); letter-spacing: 0.06em; margin: 0.35rem 0 0.15rem; }
+.llm-chapters { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.llm-chapters a {
+  display: grid; grid-template-columns: 2rem 1fr; gap: 0.55rem; align-items: baseline;
+  padding: 0.55rem 0.7rem; border-radius: 10px; text-decoration: none; color: var(--llm-muted);
+  font-size: 0.92rem; line-height: 1.35; border-left: 3px solid transparent;
+}
+.llm-chapters a:hover { background: rgba(0,0,0,0.03); color: var(--llm-ink); }
+.llm-chapters a.active { background: var(--llm-active-bg); color: var(--llm-ink); font-weight: 600; border-left-color: var(--llm-accent); }
+.llm-chapters .num { font-family: var(--font-mono); font-size: 0.82rem; opacity: 0.85; }
+.llm-side-foot { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--llm-line); }
+.llm-side-foot a { color: var(--llm-muted); text-decoration: none; font-size: 0.88rem; }
+.llm-main { min-width: 0; display: flex; flex-direction: column; }
+.llm-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 0.95rem 2rem; border-bottom: 1px solid var(--llm-line);
+  background: rgba(246,247,249,0.92); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 5;
+}
+.llm-brand { display: inline-flex; align-items: center; gap: 0.55rem; text-decoration: none; color: var(--llm-ink); font-weight: 650; }
+.llm-brand-mark {
+  width: 1.55rem; height: 1.55rem; border-radius: 6px; background: #15202b; color: #fff;
+  display: grid; place-items: center; font-size: 0.68rem; font-weight: 700; font-family: var(--font-mono);
+}
+.llm-top-links a { color: var(--llm-muted); text-decoration: none; font-size: 0.9rem; margin-left: 1rem; }
+.llm-article { width: min(760px, calc(100% - 3rem)); margin: 0 auto; padding: 1.75rem 0 4rem; }
+.llm-meta { color: var(--llm-muted); font-size: 0.88rem; margin-bottom: 1.25rem; }
+.llm-chapter-head { display: flex; align-items: flex-start; gap: 0.9rem; margin-bottom: 1.25rem; }
+.llm-chapter-num {
+  min-width: 2.4rem; height: 2.4rem; padding: 0 0.55rem; border-radius: 8px;
+  background: var(--llm-accent); color: var(--llm-accent-ink); display: grid; place-items: center;
+  font-family: var(--font-mono); font-weight: 700;
+}
+.llm-chapter-head h1 { margin: 0; font-size: clamp(1.7rem, 3.2vw, 2.35rem); border: none; padding: 0; }
+.llm-author {
+  margin: 0 0 1.75rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--llm-line);
+}
+.llm-author h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--llm-ink);
+  border: none;
+  padding: 0;
+}
+.llm-author p {
+  margin: 0;
+  color: #3a4652;
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+.book-block {
+  margin: 0 0 1rem; padding: 1rem 1.1rem 1.05rem; border-radius: 12px; background: #fff; border: 1px solid var(--llm-line);
+}
+.book-block h2 {
+  margin: 0 0 0.55rem; font-size: 1.05rem; border: none; padding: 0; display: flex; gap: 0.65rem; align-items: baseline;
+}
+.book-block h2 a { text-decoration: none; color: var(--llm-ink); }
+.book-block h2 .num {
+  display: inline-grid; place-items: center; width: 1.85rem; height: 1.85rem; border-radius: 7px;
+  background: var(--llm-accent); color: var(--llm-accent-ink); font-family: var(--font-mono); font-size: 0.82rem; font-weight: 700;
+}
+.book-block .blurb { margin: 0 0 0.55rem; color: var(--llm-muted); font-size: 0.92rem; }
+.book-block ul.secs {
+  list-style: none; margin: 0; padding: 0; color: #3a4652; font-size: 0.92rem;
+  display: grid; gap: 0.28rem;
+}
+.book-block ul.secs a { text-decoration: none; }
+.llm-footer-nav {
+  display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem;
+  padding-top: 1.25rem; border-top: 1px solid var(--llm-line);
+}
+.llm-footer-nav a { text-decoration: none; color: var(--llm-ink); font-weight: 600; }
+@media (max-width: 920px) {
+  .llm-shell { grid-template-columns: 1fr; }
+  .llm-sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--llm-line); }
+  .llm-article { width: min(760px, calc(100% - 2rem)); }
+}
+</style>
+</head>
+<body class="llm-book">
+  <div class="llm-shell">
+    <aside class="llm-sidebar" aria-label="目录">
+      <a class="llm-back" href="index.html">← 返回目录</a>
+      <div class="llm-toc-label">目录</div>
+      <ul class="llm-chapters">
+        <li><a class="active" href="index.html"><span class="num">书</span><span>总目录</span></a></li>
+        <li><a href="ch01.html"><span class="num">01</span><span>下一个字符与 Loss</span></a></li>
+        <li><a href="ch02.html"><span class="num">02</span><span>模型前向结构</span></a></li>
+        <li><a href="ch03.html"><span class="num">03</span><span>梯度与优化器</span></a></li>
+        <li><a href="ch04.html"><span class="num">04</span><span>train.py 整圈对照</span></a></li>
+        <li><a href="ch05.html"><span class="num">05</span><span>采样与曲线解读</span></a></li>
+        <li><a href="practice.html"><span class="num">附</span><span>实战记录</span></a></li>
+      </ul>
+      <div class="llm-side-foot"><a href="cover.html">封面</a></div>
+    </aside>
+    <div class="llm-main">
+      <header class="llm-topbar">
+        <a class="llm-brand" href="index.html"><span class="llm-brand-mark">LLM</span>大模型训练入门</a>
+        <div class="llm-top-links">
+          <a href="cover.html">封面</a>
+          <a href="practice.html">实战</a>
+        </div>
+      </header>
+      <article class="llm-article">
+        <div class="llm-meta">写给小白的 nanoGPT 训练入门书 · 陈雷 · 陈朝飞 · 黄桃 · 夏志强 著</div>
+        <div class="llm-chapter-head">
+          <div class="llm-chapter-num">书</div>
+          <h1>大模型训练入门</h1>
+        </div>
+        <p style="margin:0 0 1.25rem">
+          <a href="cover.html">查看书籍封面 →</a>
+        </p>
+        <p style="margin:0 0 1.5rem">
+          <a href="cover.html" style="display:inline-block;line-height:0;border-radius:8px;overflow:hidden;border:1px solid var(--llm-line,#e2e6eb)">
+            <img src="images/cover.jpg" alt="大模型训练入门 封面" style="width:min(280px,100%);height:auto;display:block" />
+          </a>
+        </p>
+        <section class="llm-author" aria-label="作者介绍">
+          <h2>作者介绍</h2>
+          <p>陈雷，希望学产研负责人。陈朝飞，希望学基础架构负责人。黄桃，希望学业务研发负责人。夏志强，希望学平台产研负责人。</p>
+        </section>
+
+        <section class="book-block">
+          <h2><a href="ch01.html"><span class="num">01</span>下一个字符预测与交叉熵</a></h2>
+          <p class="blurb">建立最核心直觉：训练 = 猜下一个字 + 用 Loss 算账。</p>
+          <ul class="secs">
+            <li><a href="ch01.html#s1-1">1.1 数据长什么样</a></li>
+            <li><a href="ch01.html#s1-2">1.2 数学：自回归分解</a></li>
+            <li><a href="ch01.html#s1-3">1.3 Loss 到底是什么数</a></li>
+            <li><a href="ch01.html#s1-4">1.4 对照训练曲线</a></li>
+            <li><a href="ch01.html#s1-5">1.5 每个 step 在优化什么</a></li>
+            <li><a href="ch01.html#s1-expand">1.6 扩展：小模型到大模型</a></li>
+          </ul>
+        </section>
+
+        <section class="book-block">
+          <h2><a href="ch02.html"><span class="num">02</span>Embedding、Attention 与 MLP</a></h2>
+          <p class="blurb">人话总览 + 前向链路全拆解：查表、因果注意力、残差块、lm_head、Softmax。</p>
+          <ul class="secs">
+            <li><a href="ch02.html#s2-1">2.1 人话版三大块</a></li>
+            <li><a href="ch02.html#s2-2">2.2 前向传播链路</a></li>
+            <li><a href="ch02.html#s2-3">2.3 Embedding</a></li>
+            <li><a href="ch02.html#s2-4">2.4 Attention</a></li>
+            <li><a href="ch02.html#s2-5">2.5 Block 与残差</a></li>
+            <li><a href="ch02.html#s2-6">2.6 lm_head</a></li>
+            <li><a href="ch02.html#s2-7">2.7 Softmax</a></li>
+            <li><a href="ch02.html#s2-expand">2.8 扩展：对照现代 LLM</a></li>
+          </ul>
+        </section>
+
+        <section class="book-block">
+          <h2><a href="ch03.html"><span class="num">03</span>反向传播与 AdamW</a></h2>
+          <p class="blurb">训练三件套详解：梯度从哪来、AdamW 怎么改、lr 如何调度。</p>
+          <ul class="secs">
+            <li><a href="ch03.html#s3-1">3.1 人话版三件套</a></li>
+            <li><a href="ch03.html#s3-2">3.2 还缺怎么改参数</a></li>
+            <li><a href="ch03.html#s3-3">3.3 反向传播</a></li>
+            <li><a href="ch03.html#s3-4">3.4 为什么用 AdamW</a></li>
+            <li><a href="ch03.html#s3-5">3.5 warmup + cosine</a></li>
+            <li><a href="ch03.html#s3-6">3.6 梯度裁剪</a></li>
+            <li><a href="ch03.html#s3-7">3.7 与曲线关系</a></li>
+            <li><a href="ch03.html#s3-expand">3.8 扩展：预训练旋钮</a></li>
+          </ul>
+        </section>
+
+        <section class="book-block">
+          <h2><a href="ch04.html"><span class="num">04</span>训练循环全景</a></h2>
+          <p class="blurb">对照 train.py 总装配：流程图、逐步人话、日志解读与命令效果。</p>
+          <ul class="secs">
+            <li><a href="ch04.html#s4-1">4.1 while True 全景</a></li>
+            <li><a href="ch04.html#s4-2">4.2 步骤详解</a></li>
+            <li><a href="ch04.html#s4-3">4.3 终端日志</a></li>
+            <li><a href="ch04.html#s4-4">4.4 完整命令效果</a></li>
+            <li><a href="ch04.html#s4-expand">4.5 扩展：源码阅读标注</a></li>
+          </ul>
+        </section>
+
+        <section class="book-block">
+          <h2><a href="ch05.html"><span class="num">05</span>采样生成与过拟合</a></h2>
+          <p class="blurb">生成路径、temperature / top-k、真实曲线解读与调试清单。</p>
+          <ul class="secs">
+            <li><a href="ch05.html#s5-1">5.1 生成代码路径</a></li>
+            <li><a href="ch05.html#s5-2">5.2 Temperature</a></li>
+            <li><a href="ch05.html#s5-3">5.3 Top-k</a></li>
+            <li><a href="ch05.html#s5-4">5.4 读 train/val 曲线</a></li>
+            <li><a href="ch05.html#s5-5">5.5 质量差≠公式错</a></li>
+            <li><a href="ch05.html#s5-expand">5.6 扩展：采样调试清单</a></li>
+          </ul>
+        </section>
+
+        <section class="book-block">
+          <h2><a href="practice.html"><span class="num">附</span>本机实战过程总结</a></h2>
+          <p class="blurb">完整复现手册：环境、两轮训练、采样、时间线与五章对照。</p>
+          <ul class="secs">
+            <li><a href="practice.html#p0">A.1 环境准备</a></li>
+            <li><a href="practice.html#p1">A.2 数据准备</a></li>
+            <li><a href="practice.html#p2">A.3 轻量版 v1</a></li>
+            <li><a href="practice.html#p3">A.4 加强版 v2</a></li>
+            <li><a href="practice.html#p4">A.5 怎么用模型</a></li>
+            <li><a href="practice.html#p5">A.6 实战时间线</a></li>
+            <li><a href="practice.html#p6">A.7 理论对照</a></li>
+            <li><a href="practice.html#p7">A.8 一句话结论</a></li>
+          </ul>
+        </section>
+
+        <div class="llm-footer-nav">
+          <a href="cover.html">← 封面</a>
+          <a href="ch01.html">开始第 1 章 →</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

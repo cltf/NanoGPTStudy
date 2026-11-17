@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下一个字符预测与交叉熵 · 大模型训练入门</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false},{left:'$',right:'$',display:false}]})"></script>
+  <style>
+:root {
+  --llm-bg: #f6f7f9;
+  --llm-sidebar: #f6f7f9;
+  --llm-ink: #15202b;
+  --llm-muted: #6b7785;
+  --llm-line: #e2e6eb;
+  --llm-active-bg: #e8eef3;
+  --llm-accent: #3db8a9;
+  --llm-accent-ink: #0d3d38;
+}
+body.llm-book {
+  background: var(--llm-bg) !important;
+  color: var(--llm-ink);
+  font-size: 17px;
+  line-height: 1.75;
+}
+body.llm-book a { color: #0f5c54; }
+body.llm-book a:hover { color: var(--llm-ink); }
+.llm-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.llm-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 1.25rem 1rem 1.5rem;
+  border-right: 1px solid var(--llm-line);
+  background: var(--llm-sidebar);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.llm-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--llm-muted) !important;
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+.llm-back:hover { color: var(--llm-ink) !important; }
+.llm-toc-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--llm-muted);
+  letter-spacing: 0.06em;
+  margin: 0.35rem 0 0.15rem;
+}
+.llm-chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.llm-chapters a {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.55rem;
+  align-items: baseline;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--llm-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  border-left: 3px solid transparent;
+}
+.llm-chapters a:hover {
+  background: rgba(0,0,0,0.03);
+  color: var(--llm-ink);
+}
+.llm-chapters a.active {
+  background: var(--llm-active-bg);
+  color: var(--llm-ink);
+  font-weight: 600;
+  border-left-color: var(--llm-accent);
+}
+.llm-chapters .num {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: inherit;
+  opacity: 0.85;
+}
+.llm-sec-toc {
+  list-style: none;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0 0 0 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.llm-sec-toc a {
+  display: block;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--llm-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.llm-sec-toc a:hover {
+  background: rgba(0,0,0,0.03);
+  color: var(--llm-ink);
+}
+.llm-side-foot {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--llm-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.llm-side-foot a {
+  color: var(--llm-muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+.llm-side-foot a:hover { color: var(--llm-ink); }
+.llm-main { min-width: 0; display: flex; flex-direction: column; }
+.llm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 2rem;
+  border-bottom: 1px solid var(--llm-line);
+  background: rgba(246,247,249,0.92);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.llm-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-decoration: none;
+  color: var(--llm-ink);
+  font-weight: 650;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+.llm-brand-mark {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 6px;
+  background: #15202b;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.llm-top-links { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+.llm-top-links a {
+  color: var(--llm-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.llm-top-links a:hover { color: var(--llm-ink); }
+.llm-article {
+  width: min(760px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 1.75rem 0 4rem;
+}
+.llm-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  color: var(--llm-muted);
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+}
+.llm-chapter-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+.llm-chapter-num {
+  flex: 0 0 auto;
+  min-width: 2.4rem;
+  height: 2.4rem;
+  padding: 0 0.55rem;
+  border-radius: 8px;
+  background: var(--llm-accent);
+  color: var(--llm-accent-ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.llm-chapter-head h1 {
+  margin: 0;
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  border: none;
+  padding: 0;
+  letter-spacing: -0.03em;
+}
+.llm-content .lead { margin-top: 0; }
+.llm-content h2 {
+  border-top: none;
+  padding-top: 0.2rem;
+  margin-top: 2.2rem;
+  scroll-margin-top: 5rem;
+}
+.llm-content h2::before {
+  content: "";
+  display: block;
+  width: 2rem;
+  height: 3px;
+  background: var(--llm-accent);
+  margin-bottom: 0.75rem;
+  border-radius: 2px;
+}
+.llm-onpage {
+  margin: 1rem 0 1.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--llm-line);
+}
+.llm-onpage .label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--llm-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.45rem;
+}
+.llm-onpage ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.llm-onpage a { text-decoration: none; }
+.llm-footer-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--llm-line);
+}
+.llm-footer-nav a {
+  text-decoration: none;
+  color: var(--llm-ink);
+  font-weight: 600;
+}
+@media (max-width: 920px) {
+  .llm-shell { grid-template-columns: 1fr; }
+  .llm-sidebar {
+    position: static;
+    height: auto;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--llm-line);
+  }
+  .llm-article { width: min(760px, calc(100% - 2rem)); }
+  .llm-topbar { padding: 0.85rem 1rem; }
+}
+</style>
+</head>
+<body class="llm-book">
+  <div class="llm-shell">
+    <aside class="llm-sidebar" aria-label="目录">
+      <a class="llm-back" href="index.html">← 返回目录</a>
+      <div class="llm-toc-label">目录</div>
+      <ul class="llm-chapters">
+        <li><a href="ch01.html" class="active"><span class="num">01</span><span>下一个字符与 Loss</span></a></li>
+        <ul class="llm-sec-toc"><li><a href="#s1-1">1.1 数据长什么样</a></li><li><a href="#s1-2">1.2 数学：自回归分解</a></li><li><a href="#s1-3">1.3 Loss 到底是什么数？</a></li><li><a href="#s1-4">1.4 和你训练曲线的对照</a></li><li><a href="#s1-5">1.5 每个训练 step 在优化…</a></li><li><a href="#s1-expand">1.6 扩展：从小模型到大模型，不…</a></li><li><a href="#s1-quiz">自测题</a></li></ul>
+        <li><a href="ch02.html"><span class="num">02</span><span>模型前向结构</span></a></li>
+        <li><a href="ch03.html"><span class="num">03</span><span>梯度与优化器</span></a></li>
+        <li><a href="ch04.html"><span class="num">04</span><span>train.py 整圈对照</span></a></li>
+        <li><a href="ch05.html"><span class="num">05</span><span>采样与曲线解读</span></a></li>
+        <li><a href="practice.html"><span class="num">附</span><span>实战记录</span></a></li>
+      </ul>
+      <div class="llm-side-foot">
+        <a href="index.html">总目录</a>
+        <a href="cover.html">封面</a>
+      </div>
+    </aside>
+    <div class="llm-main">
+      <header class="llm-topbar">
+        <a class="llm-brand" href="index.html">
+          <span class="llm-brand-mark">LLM</span>
+          大模型训练入门
+        </a>
+        <div class="llm-top-links">
+          <a href="index.html">目录</a>
+          <a href="practice.html">实战</a>
+        </div>
+      </header>
+      <article class="llm-article">
+        <div class="llm-meta">
+          <div>大模型训练入门 · 基于 nanoGPT</div>
+        </div>
+        <div class="llm-chapter-head">
+          <div class="llm-chapter-num">01</div>
+          <h1>下一个字符预测与交叉熵</h1>
+        </div>
+        <p class="lead">给定前文猜下一个字符；用交叉熵衡量对错；对照本机曲线看懂训练在优化什么。</p>
+        
+        <nav class="llm-onpage" aria-label="本章小节">
+          <div class="label">本章小节</div>
+          <ul>
+      <li><a href="#s1-1">1.1 数据长什么样</a></li>
+      <li><a href="#s1-2">1.2 数学：自回归分解</a></li>
+      <li><a href="#s1-3">1.3 Loss 到底是什么数？</a></li>
+      <li><a href="#s1-4">1.4 和你训练曲线的对照</a></li>
+      <li><a href="#s1-5">1.5 每个训练 step 在优化什么</a></li>
+      <li><a href="#s1-expand">1.6 扩展：从小模型到大模型，不变的是什么</a></li>
+      <li><a href="#s1-quiz">自测题</a></li>
+          </ul>
+        </nav>
+        <div class="llm-content">
+<div class="card tip">
+  <div class="label">本章导读</div>
+  <p style="margin:0">本章按书籍顺序展开「下一字符 + 交叉熵」：先把数据与词表看清，再进入自回归与似然，然后把 logits / Softmax / CrossEntropy 串成一条可核对流水线，最后对照本机真实 loss 曲线。读完应能独立讲清：<strong>训练到底在优化什么数字</strong>。</p>
+</div>
+
+<div class="card tip">
+      <div class="label">配套脚本</div>
+      <pre><code>cd nanoGPT &amp;&amp; source .venv/bin/activate
+python lessons/lesson1_next_token.py</code></pre>
+    </div>
+
+    <h2 id="s1-1">1.1 数据长什么样</h2>
+    <p>莎士比亚文本被拆成 <strong>65 个字符</strong>（字母、标点、换行…），每个字符变成一个整数 ID。训练时从 <code>train.bin</code> 随机切一段，构造输入 <code>X</code> 和标签 <code>Y</code>。</p>
+
+    <div class="vocab-panel" id="vocab-65">
+      <div class="vp-head">
+        <strong>词表一览 · vocab_size = 65</strong>
+        <span>来源：data/shakespeare_char/meta.pkl（itos）</span>
+      </div>
+      <ul class="vocab-notes">
+        <li><strong>备注：</strong>词表不是「所有英文字符」，而是 <code>input.txt</code> 里<strong>实际出现过</strong>的字符集合。</li>
+        <li>每个字符对应一个固定 ID（0–64）；模型每次在这 65 个候选里预测下一个字符。</li>
+        <li>没有中文；数字也几乎没有——剧本里只出现了 <code>3</code>（如场景编号），所以词表里只有这一个数字。</li>
+      </ul>
+
+      <div class="vocab-group">
+        <div class="vg-title">空白与控制字符 <span class="count">2</span></div>
+        <p class="vg-note">换行很关键：莎士比亚剧本里角色名后常跟 <code>:</code> + <code>\n</code>，模型会学到这种格式。</p>
+        <div class="char-grid">
+          <div class="char-cell special"><span class="id">0</span><span class="ch">\n</span></div>
+          <div class="char-cell special"><span class="id">1</span><span class="ch">␣</span></div>
+        </div>
+        <p class="vg-note" style="margin:0.55rem 0 0">ID1 的 <code>␣</code> 表示空格（space），页面上用可见符号代替，避免显示成空白。</p>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">标点 / 符号 <span class="count">10</span></div>
+        <p class="vg-note">对话、省略、破折、问句等；<code>:</code> 常出现在角色名后（如 <code>ROMEO:</code>）。</p>
+        <div class="char-grid">
+          <div class="char-cell punct"><span class="id">2</span><span class="ch">!</span></div>
+          <div class="char-cell punct"><span class="id">3</span><span class="ch">$</span></div>
+          <div class="char-cell punct"><span class="id">4</span><span class="ch">&amp;</span></div>
+          <div class="char-cell punct"><span class="id">5</span><span class="ch">'</span></div>
+          <div class="char-cell punct"><span class="id">6</span><span class="ch">,</span></div>
+          <div class="char-cell punct"><span class="id">7</span><span class="ch">-</span></div>
+          <div class="char-cell punct"><span class="id">8</span><span class="ch">.</span></div>
+          <div class="char-cell punct"><span class="id">10</span><span class="ch">:</span></div>
+          <div class="char-cell punct"><span class="id">11</span><span class="ch">;</span></div>
+          <div class="char-cell punct"><span class="id">12</span><span class="ch">?</span></div>
+        </div>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">数字 <span class="count">1</span></div>
+        <p class="vg-note">仅 <code>3</code>。说明：字符级词表按「语料里出现过什么就收什么」，不是预置 0–9。</p>
+        <div class="char-grid" style="max-width:5rem">
+          <div class="char-cell special"><span class="id">9</span><span class="ch">3</span></div>
+        </div>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">大写字母 A–Z <span class="count">26</span></div>
+        <p class="vg-note">角色名、句首等多用大写；大小写是不同 ID（例如 <code>A</code>=13，<code>a</code>=39）。</p>
+        <div class="char-grid">
+          <div class="char-cell upper"><span class="id">13</span><span class="ch">A</span></div>
+          <div class="char-cell upper"><span class="id">14</span><span class="ch">B</span></div>
+          <div class="char-cell upper"><span class="id">15</span><span class="ch">C</span></div>
+          <div class="char-cell upper"><span class="id">16</span><span class="ch">D</span></div>
+          <div class="char-cell upper"><span class="id">17</span><span class="ch">E</span></div>
+          <div class="char-cell upper"><span class="id">18</span><span class="ch">F</span></div>
+          <div class="char-cell upper"><span class="id">19</span><span class="ch">G</span></div>
+          <div class="char-cell upper"><span class="id">20</span><span class="ch">H</span></div>
+          <div class="char-cell upper"><span class="id">21</span><span class="ch">I</span></div>
+          <div class="char-cell upper"><span class="id">22</span><span class="ch">J</span></div>
+          <div class="char-cell upper"><span class="id">23</span><span class="ch">K</span></div>
+          <div class="char-cell upper"><span class="id">24</span><span class="ch">L</span></div>
+          <div class="char-cell upper"><span class="id">25</span><span class="ch">M</span></div>
+          <div class="char-cell upper"><span class="id">26</span><span class="ch">N</span></div>
+          <div class="char-cell upper"><span class="id">27</span><span class="ch">O</span></div>
+          <div class="char-cell upper"><span class="id">28</span><span class="ch">P</span></div>
+          <div class="char-cell upper"><span class="id">29</span><span class="ch">Q</span></div>
+          <div class="char-cell upper"><span class="id">30</span><span class="ch">R</span></div>
+          <div class="char-cell upper"><span class="id">31</span><span class="ch">S</span></div>
+          <div class="char-cell upper"><span class="id">32</span><span class="ch">T</span></div>
+          <div class="char-cell upper"><span class="id">33</span><span class="ch">U</span></div>
+          <div class="char-cell upper"><span class="id">34</span><span class="ch">V</span></div>
+          <div class="char-cell upper"><span class="id">35</span><span class="ch">W</span></div>
+          <div class="char-cell upper"><span class="id">36</span><span class="ch">X</span></div>
+          <div class="char-cell upper"><span class="id">37</span><span class="ch">Y</span></div>
+          <div class="char-cell upper"><span class="id">38</span><span class="ch">Z</span></div>
+        </div>
+      </div>
+
+      <div class="vocab-group">
+        <div class="vg-title">小写字母 a–z <span class="count">26</span></div>
+        <p class="vg-note">正文主体；2+10+1+26+26 = <strong>65</strong>。</p>
+        <div class="char-grid">
+          <div class="char-cell lower"><span class="id">39</span><span class="ch">a</span></div>
+          <div class="char-cell lower"><span class="id">40</span><span class="ch">b</span></div>
+          <div class="char-cell lower"><span class="id">41</span><span class="ch">c</span></div>
+          <div class="char-cell lower"><span class="id">42</span><span class="ch">d</span></div>
+          <div class="char-cell lower"><span class="id">43</span><span class="ch">e</span></div>
+          <div class="char-cell lower"><span class="id">44</span><span class="ch">f</span></div>
+          <div class="char-cell lower"><span class="id">45</span><span class="ch">g</span></div>
+          <div class="char-cell lower"><span class="id">46</span><span class="ch">h</span></div>
+          <div class="char-cell lower"><span class="id">47</span><span class="ch">i</span></div>
+          <div class="char-cell lower"><span class="id">48</span><span class="ch">j</span></div>
+          <div class="char-cell lower"><span class="id">49</span><span class="ch">k</span></div>
+          <div class="char-cell lower"><span class="id">50</span><span class="ch">l</span></div>
+          <div class="char-cell lower"><span class="id">51</span><span class="ch">m</span></div>
+          <div class="char-cell lower"><span class="id">52</span><span class="ch">n</span></div>
+          <div class="char-cell lower"><span class="id">53</span><span class="ch">o</span></div>
+          <div class="char-cell lower"><span class="id">54</span><span class="ch">p</span></div>
+          <div class="char-cell lower"><span class="id">55</span><span class="ch">q</span></div>
+          <div class="char-cell lower"><span class="id">56</span><span class="ch">r</span></div>
+          <div class="char-cell lower"><span class="id">57</span><span class="ch">s</span></div>
+          <div class="char-cell lower"><span class="id">58</span><span class="ch">t</span></div>
+          <div class="char-cell lower"><span class="id">59</span><span class="ch">u</span></div>
+          <div class="char-cell lower"><span class="id">60</span><span class="ch">v</span></div>
+          <div class="char-cell lower"><span class="id">61</span><span class="ch">w</span></div>
+          <div class="char-cell lower"><span class="id">62</span><span class="ch">x</span></div>
+          <div class="char-cell lower"><span class="id">63</span><span class="ch">y</span></div>
+          <div class="char-cell lower"><span class="id">64</span><span class="ch">z</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">关键构造</div>
+      <p style="margin:0"><strong>Y 是 X 向右平移 1 位</strong>——看到前文，预测「下一个」字符。</p>
+    </div>
+
+    <p>对应 <code>train.py</code> 中的 <code>get_batch</code>：</p>
+    <pre><code>x = data[i : i+block_size]       # 输入
+y = data[i+1 : i+1+block_size]   # 标签 = 右移 1 位</code></pre>
+
+    <p>真实例子（脚本输出）：</p>
+    <div class="mono-table">原文: 'Second Citizen:\nW'
+
+位置 | 输入X(看到的) | 标签Y(要预测的)
+   0 | 'S'            | 'e'
+   1 | 'e'            | 'c'
+   2 | 'c'            | 'o'
+  ...
+  13 | 'n'            | ':'
+  14 | ':'            | '\n'   ← 角色名后常跟冒号+换行
+  15 | '\n'           | 'W'</div>
+
+    <h2 id="s1-2">1.2 数学：自回归分解</h2>
+    <p>整段文本的概率被拆成「每一步预测下一个」：</p>
+    <div class="math">$$P(x_0,x_1,\ldots,x_T)=\prod_{t=0}^{T} P(x_t \mid x_{&lt;t})$$</div>
+    <p>训练目标 = <strong>最大化这个似然</strong> = <strong>最小化负对数似然（NLL）</strong>：</p>
+    <div class="math">$$\mathcal{L}=-\sum_t \log P_\theta(x_t \mid x_{&lt;t})$$</div>
+
+    <!-- 深度讲透：版式刻意不同于上方正文卡片 -->
+    <section class="deep-dive" aria-label="自回归与似然深度讲透">
+      <div class="deep-dive-head">
+        <span class="tag">Deep Dive</span>
+        <span>把上面两个公式讲成人话</span>
+      </div>
+      <div class="deep-dive-body">
+
+        <h3><span class="n">①</span>先看第一个公式：自回归分解</h3>
+        <div class="math">$$P(x_0,x_1,\dots,x_T)=\prod_{t=0}^{T} P(x_t \mid x_{&lt;t})$$</div>
+
+        <dl>
+          <dt>$P(A)$</dt>
+          <dd>A 这件事发生的<strong>概率</strong></dd>
+          <dt>$P(x_t \mid x_{&lt;t})$</dt>
+          <dd><strong>条件概率</strong>：在已经看到前面所有文字 $x_0,x_1,\ldots,x_{t-1}$ 的前提下，下一个是 $x_t$ 的概率</dd>
+          <dt>$\prod$（连乘）</dt>
+          <dd>把每一步的概率<strong>全部乘起来</strong></dd>
+        </dl>
+
+        <p class="takeaway">一整段文字出现的总概率 = 依次把「每一步猜对下一个 token 的概率」相乘。</p>
+
+        <div class="example-box">
+          <span class="caption">极简例子 · 句子 I love cat</span>
+          总概率 = P(I) × P(love | I) × P(cat | I love)
+        </div>
+        <p>模型就是要让这个<strong>总概率尽可能大</strong>。</p>
+
+        <h3><span class="n">②</span>什么是「似然（Likelihood）」</h3>
+        <p><strong>似然</strong>：给定模型参数，观察到这串文本的概率。</p>
+
+        <div class="compare">
+          <div class="col prob">
+            <div class="kicker">概率 Probability</div>
+            <strong>固定模型 → 问文字</strong>
+            <p>「这个句子出现的可能性有多大？」</p>
+          </div>
+          <div class="col like">
+            <div class="kicker">似然 Likelihood</div>
+            <strong>固定真实句子 → 评模型</strong>
+            <p>「当前这套参数，有多符合真实数据？」</p>
+          </div>
+        </div>
+
+        <p class="takeaway">通俗理解：似然 = 模型猜中真实文本的「靠谱程度」。似然越大，模型越贴合真实数据。</p>
+
+        <div class="card warn" style="margin:0.85rem 0;box-shadow:none">
+          <div class="label">重点区分</div>
+          <ul style="margin:0.35rem 0 0;padding-left:1.1rem">
+            <li><strong>概率</strong>：从模型 → 预测文字</li>
+            <li><strong>似然</strong>：从真实文字 → 评价模型好不好</li>
+          </ul>
+          <p style="margin:0.65rem 0 0">训练目标：<strong>最大化似然</strong>，让模型认为真实文本发生的概率尽可能高。</p>
+        </div>
+
+        <h3><span class="n">③</span>第二个公式：负对数似然 NLL（就是 Loss）</h3>
+        <div class="math">$$\mathcal{L}=-\sum_{t} \log P_\theta(x_t \mid x_{&lt;t})$$</div>
+        <p>为什么要把「最大化似然」转成「最小化 loss」？两个数学原因：</p>
+        <ul class="chain">
+          <li>一堆小数相乘会极小，计算机容易<strong>下溢</strong>；取 $\log$ 后乘法变加法，更好算</li>
+          <li>$\log$ 特性：概率越大，log 值越大；框架习惯<strong>最小化</strong>损失，所以前面加负号 $-$</li>
+        </ul>
+
+        <div class="eq-banner">最大化似然 ⇔ 最小化负对数似然（NLL Loss）</div>
+
+        <dl>
+          <dt>$\theta$</dt>
+          <dd>模型里所有权重（权重文件里那一大堆数字）</dd>
+          <dt>$\mathcal{L}$</dt>
+          <dd>就是你训练时看到的 <strong>loss</strong></dd>
+        </dl>
+        <p class="takeaway">loss 越小 = 负对数似然越小 = 似然越大 = 模型预测下一个 token 越准</p>
+
+        <h3><span class="n">④</span>结合你跑过的 NanoGPT</h3>
+        <p>莎士比亚字符 GPT，和 ChatGPT 预训练的<strong>数学公式完全一样</strong>：</p>
+        <ul>
+          <li><strong>NanoGPT</strong>：预测下一个<strong>字符</strong>（char）</li>
+          <li><strong>ChatGPT / Gemma / Qwen</strong>：预测下一个<strong>词元</strong>（token）</li>
+        </ul>
+        <p>差别只在：分词方式、参数量、训练数据大小；<strong>底层目标相同</strong>。</p>
+
+        <h3><span class="n">⑤</span>生活化小结</h3>
+        <p>假设句子是：<strong>今天天气很好</strong></p>
+        <div class="example-box">
+          <span class="caption">自回归连乘</span>
+          P(今) × P(天|今) × P(天|今天) × P(气|今天天)<br>
+          × P(很|今天天气) × P(好|今天天气很)
+        </div>
+        <ul>
+          <li><strong>似然</strong>：模型给这一串的总打分，打分越高越好</li>
+          <li><strong>训练</strong>：不断调整权重，拉高这个打分；等价于降低 loss</li>
+        </ul>
+        <p class="takeaway">你看到 loss 持续下降，本质就是：模型的似然在不断变大——它越来越会猜下一个字。</p>
+      </div>
+    </section>
+
+    <h2 id="s1-3">1.3 Loss 到底是什么数？</h2>
+    <p>模型输出每个字符的分数 <code>logits</code>（长度 65），再 Softmax 成概率：</p>
+    <div class="math">$$P(c)=\dfrac{e^{z_c}}{\sum_{c'} e^{z_{c'}}}$$</div>
+    <p>若正确答案是字符 $c^*$：</p>
+    <div class="math">$$\text{CrossEntropy}=-\log P(c^*)$$</div>
+
+    <section class="deep-dive theme-loss" aria-label="Logits Softmax CrossEntropy 深度讲透">
+      <div class="deep-dive-head">
+        <span class="tag">Deep Dive</span>
+        <span>Logits → Softmax → CrossEntropy 拆开讲</span>
+      </div>
+      <div class="deep-dive-body">
+
+        <h3><span class="n">①</span>logits 是什么</h3>
+        <p>模型最后输出一堆<strong>没有范围限制的原始分数</strong>，就叫 logits。</p>
+        <p>你这个 NanoGPT 莎士比亚字符版，词表一共 <strong>65</strong> 个字符（<a href="#vocab-65">完整列表见上方</a>），所以每次输出 <strong>65 个分数</strong>。</p>
+        <p class="takeaway">这些分数不是概率！可以是正数、负数、大或小，没法直接理解成「可能性」。</p>
+        <div class="example-box">
+          <span class="caption">示例（示意数字，不是某次真实打印）</span>
+          logits = [2.3, 0.1, -1.2, ...] 一共 65 个数字<br>
+          每个数字 = 模型对「下一个字符是这个候选」的偏好打分
+        </div>
+
+        <h3><span class="n">①+</span>这 65 个数是怎么算出来的</h3>
+        <p class="takeaway">不是手写的，而是前向传播最后一步：线性层 <code>lm_head</code> 算出来的。</p>
+
+        <p>对<strong>某一个位置</strong>（例如刚看完前文，要猜下一个字符）来说：</p>
+
+        <ul class="chain">
+          <li><strong>前面整网先算出语义向量 $x$</strong>：字符 ID → Embedding(+位置) → 若干层 Attention/MLP → LayerNorm。你训练时 <code>n_embd=128</code>，所以 $x$ 是 <strong>128 维</strong></li>
+          <li><strong><code>lm_head</code> 做线性变换</strong>：把 128 维映射成 65 维分数（无 bias）</li>
+        </ul>
+
+        <div class="card tip" style="margin:0.85rem 0;box-shadow:none" id="n-embd-128">
+          <div class="label">128 维怎么来的？</div>
+          <p style="margin:0 0 0.65rem"><strong>不是从数据里算出来的，而是训练时你手动设的超参数 <code>n_embd</code>。</strong></p>
+          <p style="margin:0 0 0.5rem">当时轻量命令里写了：</p>
+          <pre style="margin:0 0 0.75rem"><code>--n_layer=4 --n_head=4 --n_embd=128 --max_iters=1500</code></pre>
+          <p style="margin:0 0 0.65rem">配置文件默认其实是 <code>n_embd=384</code>，被命令行覆盖成了 128。含义是：<strong>每个位置用 128 个数描述当前语义</strong>，整条网络都按这个宽度设计。</p>
+          <table style="margin:0.5rem 0">
+            <thead>
+              <tr><th>环节</th><th>与 128 的关系</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>wte</code> 词嵌入</td><td>形状 <code>(65, 128)</code>：每个字符 → 一个 128 维向量</td></tr>
+              <tr><td><code>wpe</code> 位置嵌入</td><td>每个位置也是 128 维，与词向量相加</td></tr>
+              <tr><td>Attention / MLP</td><td>通道数保持 128（多头时每头 <code>128/4=32</code> 维）</td></tr>
+              <tr><td><code>lm_head</code></td><td>形状 <code>(65, 128)</code>：用 128 维点积出 65 个分数</td></tr>
+            </tbody>
+          </table>
+          <div class="compare" style="margin:0.75rem 0 0">
+            <div class="col prob">
+              <div class="kicker">65</div>
+              <strong>词表大小</strong>
+              <p>语料里出现过多少种字符 → logits 有多少个候选</p>
+            </div>
+            <div class="col like">
+              <div class="kicker">128</div>
+              <strong>n_embd（你设的）</strong>
+              <p>中间表示有多「宽」：越大通常越强，也更吃算力</p>
+            </div>
+          </div>
+          <p style="margin:0.75rem 0 0" class="muted">选 128 是为了快速跑通；改成 384 也能训，只是更慢、模型更大。</p>
+        </div>
+
+        <div class="card" style="margin:0.85rem 0;box-shadow:none;border-color:#99f6e4" id="train-cmd-params">
+          <div class="label">训练命令各参数含义</div>
+          <pre style="margin:0.35rem 0 0.85rem"><code>python train.py config/train_shakespeare_char.py \
+  --device=mps --compile=False \
+  --n_layer=4 --n_head=4 --n_embd=128 --max_iters=1500</code></pre>
+          <p style="margin:0 0 0.75rem">拆成三块：<strong>跑谁 → 默认配置 → 命令行覆盖</strong>。</p>
+
+          <h3 style="border:none;padding:0;margin:0.5rem 0 0.4rem;font-size:1rem">① 位置参数（文件）</h3>
+          <table>
+            <thead><tr><th>参数</th><th>含义</th></tr></thead>
+            <tbody>
+              <tr><td><code>train.py</code></td><td>训练主程序：读数据、建模型、算 loss、反向传播、存 checkpoint</td></tr>
+              <tr><td><code>config/train_shakespeare_char.py</code></td><td>默认配置；后面的 <code>--xxx</code> 会覆盖其中同名项</td></tr>
+            </tbody>
+          </table>
+
+          <h3 style="border:none;padding:0;margin:1rem 0 0.4rem;font-size:1rem">② 运行环境</h3>
+          <table>
+            <thead><tr><th>参数</th><th>含义</th><th>为何这样设</th></tr></thead>
+            <tbody>
+              <tr><td><code>--device=mps</code></td><td>计算设备；<code>mps</code> = Apple Metal GPU</td><td>Mac M 芯片加速，比 CPU 快</td></tr>
+              <tr><td><code>--compile=False</code></td><td>是否用 <code>torch.compile</code></td><td>MPS 上 compile 常不稳定，关掉更稳</td></tr>
+            </tbody>
+          </table>
+          <p class="muted" style="margin:0.35rem 0 0">其他常见取值：<code>cpu</code>（慢但稳）、<code>cuda</code>（NVIDIA GPU）。</p>
+
+          <h3 style="border:none;padding:0;margin:1rem 0 0.4rem;font-size:1rem">③ 模型结构</h3>
+          <table>
+            <thead><tr><th>参数</th><th>含义</th><th>你设的</th><th>配置默认</th></tr></thead>
+            <tbody>
+              <tr><td><code>--n_layer</code></td><td>Transformer Block 叠多少层（每层 = Attn + MLP）</td><td><strong>4</strong></td><td>6</td></tr>
+              <tr><td><code>--n_head</code></td><td>每层注意力头数（多视角看前文）</td><td><strong>4</strong></td><td>6</td></tr>
+              <tr><td><code>--n_embd</code></td><td>隐藏向量宽度</td><td><strong>128</strong></td><td>384</td></tr>
+            </tbody>
+          </table>
+          <p style="margin:0.5rem 0">约束：$n\_embd \bmod n\_head = 0$。你这里 $128\div4=32$，每头 32 维，合法。</p>
+          <ul style="margin:0.35rem 0 0;padding-left:1.2rem;font-size:0.95rem;color:var(--muted)">
+            <li><code>n_layer</code> ↑ → 更深，更慢、参数更多</li>
+            <li><code>n_head</code> ↑ → 同层更多「视角」（总宽度仍由 <code>n_embd</code> 限制）</li>
+            <li><code>n_embd</code> ↑ → 表示更强，显存/算力开销更大</li>
+          </ul>
+
+          <div class="card tip" style="margin:0.85rem 0 0;box-shadow:none" id="attn-mlp">
+            <div class="label">Attn 和 MLP 是什么？</div>
+            <p style="margin:0 0 0.65rem">每一层 Transformer Block = <strong>Attn + MLP</strong>（外加 LayerNorm 与残差）。你设 <code>n_layer=4</code> 就是把下面这套叠 4 次。</p>
+            <div class="example-box" style="margin:0 0 0.75rem">
+              <span class="caption">一层 Block 数据流</span>
+              x ──► LayerNorm ──► Attn ──► 加回 x<br>
+              &nbsp;&nbsp;&nbsp;──► LayerNorm ──► MLP&nbsp; ──► 加回 x
+            </div>
+            <div class="compare" style="margin:0">
+              <div class="col prob">
+                <div class="kicker">Attn = Attention</div>
+                <strong>位置之间换信息</strong>
+                <p>当前位置按相关程度「看」前文（如 ROMEO、:、换行）。有 Causal Mask，不能看未来。<code>n_head=4</code> 表示 4 组注意力并行看。</p>
+                <p><strong>管「谁和谁有关」</strong> · 类比：开会听别人发言</p>
+              </div>
+              <div class="col like">
+                <div class="kicker">MLP = 多层感知机</div>
+                <strong>位置内部做变换</strong>
+                <p>每个位置单独：128 → 512（4×n_embd）→ GELU → 压回 128。不和别的位置说话。</p>
+                <p><strong>管「自己加工特征」</strong> · 类比：听完后整理笔记</p>
+              </div>
+            </div>
+            <p style="margin:0.75rem 0 0" class="muted">残差 <code>x + …</code>：本层只学修正量，梯度好回传，才能叠很多层。更细的公式见 <a href="ch02.html">第2章</a>。</p>
+          </div>
+
+          <h3 style="border:none;padding:0;margin:1rem 0 0.4rem;font-size:1rem">④ 训练时长</h3>
+          <table>
+            <thead><tr><th>参数</th><th>含义</th><th>你设的</th><th>配置默认</th></tr></thead>
+            <tbody>
+              <tr><td><code>--max_iters</code></td><td>训练多少个 step 后停止</td><td><strong>1500</strong></td><td>5000</td></tr>
+            </tbody>
+          </table>
+          <p class="muted" style="margin:0.35rem 0 0">每 1 个 iter ≈ 一个 batch：前向 → loss → 反向 → 更新。你当时约 $64\times256=16384$ 次「猜下一字符」/步。</p>
+
+          <h3 style="border:none;padding:0;margin:1rem 0 0.4rem;font-size:1rem">⑤ 命令没写、配置里已生效</h3>
+          <table>
+            <thead><tr><th>配置项</th><th>默认</th><th>含义</th></tr></thead>
+            <tbody>
+              <tr><td><code>dataset</code></td><td><code>shakespeare_char</code></td><td>莎士比亚字符级数据</td></tr>
+              <tr><td><code>batch_size</code></td><td>64</td><td>每步多少条序列</td></tr>
+              <tr><td><code>block_size</code></td><td>256</td><td>每条序列上下文长度（字符数）</td></tr>
+              <tr><td><code>learning_rate</code></td><td><code>1e-3</code></td><td>学习率</td></tr>
+              <tr><td><code>eval_interval</code></td><td>250</td><td>每多少步评估 train/val loss</td></tr>
+              <tr><td><code>out_dir</code></td><td><code>out-shakespeare-char</code></td><td>模型与曲线保存目录</td></tr>
+            </tbody>
+          </table>
+
+          <p class="takeaway" style="margin:0.85rem 0 0">一句话：在 MPS 上、不 compile，用 4 层 / 4 头 / 128 维小 GPT，练 1500 步——为了快、稳、好理解。</p>
+        </div>
+
+        <div class="math">$$\text{logits} = x\, W^{\top}$$</div>
+        <dl>
+          <dt>$x$</dt>
+          <dd>形状 $(128,)$ —— 该位置的隐藏向量（编码了前文信息）</dd>
+          <dt>$W$</dt>
+          <dd>形状 $(65,\ 128)$ —— 可学习权重（训练会更新）</dd>
+          <dt>logits</dt>
+          <dd>形状 $(65,)$ —— 对词表每个字符的打分；第 $c$ 个：$z_c = x \cdot W_c$（点积）</dd>
+        </dl>
+
+        <p>对应 <code>model.py</code>：</p>
+        <div class="example-box">
+          <span class="caption">前向关键几行</span>
+          tok_emb + pos_emb → x<br>
+          for block in transformer.h: x = block(x)<br>
+          x = ln_f(x)<br>
+          logits = self.lm_head(x)   # Linear(n_embd → vocab_size)
+        </div>
+
+        <p><strong>为什么刚好是 65 个？</strong>不是算出来碰巧是 65，而是 <code>lm_head</code> 的输出维度被设成 <code>vocab_size=65</code>——词表有多少字符，就输出多少分。</p>
+
+        <div class="compare">
+          <div class="col prob">
+            <div class="kicker">下标含义</div>
+            <p style="margin:0.35rem 0 0">下标 0 → 字符 <code>\n</code> 的偏好<br>
+            下标 1 → 空格的偏好<br>
+            …<br>
+            下标 64 → 字符 <code>z</code> 的偏好</p>
+          </div>
+          <div class="col like">
+            <div class="kicker">训练在改什么</div>
+            <p style="margin:0.35rem 0 0">开始时 $W$ 接近随机 → logits 乱 → loss≈4.17<br>
+            训练后正确字符的 logit 被抬高 → Softmax 后 $P(c^*)$ 变大 → loss 下降</p>
+          </div>
+        </div>
+
+        <p>极小例子（帮助理解「点积打分」；词表暂设为 A/B/C，$n_{\mathrm{embd}}=2$）：</p>
+        <div class="example-box">
+          <span class="caption">手算演示</span>
+          x = [1.0, 0.5]<br>
+          W_A=[2.0, 0.6] → z_A = 1×2 + 0.5×0.6 = 2.3<br>
+          W_B=[0.0, 0.2] → z_B = 0.1<br>
+          W_C=[-1.0, -0.4] → z_C = -1.2<br>
+          ⇒ logits = [2.3, 0.1, -1.2]  再 Softmax 才变成概率
+        </div>
+
+        <table>
+          <thead>
+            <tr><th>张量（你真实配置）</th><th>形状</th><th>含义</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>隐藏状态 <code>x</code></td><td><code>(64, 256, 128)</code></td><td>batch × 位置 × 向量维</td></tr>
+            <tr><td><code>lm_head</code> 权重</td><td><code>(65, 128)</code></td><td>65 个字符各一条 128 维「探针」</td></tr>
+            <tr><td><code>logits</code></td><td><code>(64, 256, 65)</code></td><td>每个位置对 65 个字符各打一分</td></tr>
+          </tbody>
+        </table>
+        <p class="muted">笔记里的 <code>[2.3, 0.1, -1.2, ...]</code> = 其中<strong>某一个位置</strong>那一行 65 个数的示意。</p>
+
+        <h3><span class="n">②</span>Softmax：把 logits 转成概率</h3>
+        <div class="math">$$P(c)=\frac{e^{z_c}}{\sum_{c'} e^{z_{c'}}}$$</div>
+        <dl>
+          <dt>$z_c$</dt>
+          <dd>第 $c$ 个候选字符的 logit 分数</dd>
+          <dt>$e^{z_c}$</dt>
+          <dd>指数函数，把分数全部变成<strong>正数</strong></dd>
+          <dt>分母 $\sum_{c'} e^{z_{c'}}$</dt>
+          <dd>把全部 65 个候选的指数结果加起来，做<strong>归一化</strong></dd>
+        </dl>
+        <p class="takeaway">结果：得到 65 个 0~1 之间的概率，总和 = 1，变成合法概率分布。</p>
+
+        <div class="example-box">
+          <span class="caption">词表只有 3 个字符 A / B / C 时</span>
+          logits = [3, 1, 0]<br>
+          e³≈20.08，e¹≈2.72，e⁰=1<br>
+          总和 = 20.08+2.72+1 = 23.8<br>
+          P(A)=20.08/23.8≈0.84，P(B)≈0.11，P(C)≈0.05<br>
+          → 模型觉得下一个是 A 的可能性最高
+        </div>
+
+        <h3><span class="n">③</span>CrossEntropy 交叉熵</h3>
+        <div class="math">$$\text{CrossEntropy}=-\log P(c^*)$$</div>
+        <dl>
+          <dt>$c^*$</dt>
+          <dd>真实正确的那个字符（标签 / 标准答案）</dd>
+          <dt>$P(c^*)$</dt>
+          <dd>Softmax 之后，模型分配给【正确答案】的概率</dd>
+        </dl>
+
+        <div class="compare">
+          <div class="col prob">
+            <div class="kicker">模型很准</div>
+            <strong>$P(c^*)$ 接近 1</strong>
+            <p>$\log(1)=0$ → loss ≈ 0</p>
+          </div>
+          <div class="col like">
+            <div class="kicker">模型很瞎</div>
+            <strong>$P(c^*)$ 很小（如 0.01）</strong>
+            <p>$\log(0.01)\approx-4.6$ → 加负号，loss ≈ 4.6</p>
+          </div>
+        </div>
+        <p class="takeaway">loss 越大 = 模型猜错得越离谱</p>
+
+        <h3><span class="n">④</span>和上一节公式串起来</h3>
+        <p>上一节的总损失：</p>
+        <div class="math">$$\mathcal{L}=-\sum_{t} \log P_\theta(x_t \mid x_{&lt;t})$$</div>
+        <ul class="chain">
+          <li>每一个位置 $t$，就是这里的 $-\log P(c^*)$</li>
+          <li>把所有位置的交叉熵加在一起，就是整个句子的总损失</li>
+        </ul>
+        <div class="eq-banner">在 next-token 预测场景：交叉熵损失 = 负对数似然 NLL</div>
+      </div>
+    </section>
+
+    <p>对应 <code>model.py</code>：</p>
+    <pre><code>logits = self.lm_head(x)
+loss = F.cross_entropy(
+    logits.view(-1, logits.size(-1)),
+    targets.view(-1),
+    ignore_index=-1
+)</code></pre>
+
+    <h3>完整流水线（务必分清顺序）</h3>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div><strong>logits</strong><span>每个字符一个原始分数（可正可负）</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div><strong>Softmax</strong><span>变成概率，所有字符概率和为 1</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div><strong>取正确答案的概率 P</strong><span>已经是概率了，不要再 Softmax</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div><strong>loss = −log(P)</strong><span>P 越大，loss 越小</span></div>
+      </div>
+    </div>
+
+    <div class="card warn">
+      <div class="label">易错点</div>
+      <p style="margin:0">若题目说「正确答案概率已经是 0.5」，直接算 $-\log(0.5)\approx 0.693$。<strong>不要</strong>写成 $-\log(\mathrm{softmax}(0.5))$——Softmax 作用在 logits 上，不是作用在概率上。</p>
+    </div>
+
+    <h2 id="s1-4">1.4 和你训练曲线的对照</h2>
+    <figure class="figure">
+      <img src="images/loss_curve_v1_lite.png" alt="轻量版 nanoGPT loss 曲线" />
+      <figcaption>
+        <strong>你的轻量版实测曲线</strong>（1500 步，约 0.80M 参数）<br>
+        蓝线 = train loss（训练集上的交叉熵）；橙线 = val loss（验证集，不参与更新权重）。<br>
+        两条线一起下降 → 正常学习。更完整的「过拟合读图」见
+        <a href="ch05.html#loss-curves">第5章 · 训练曲线解读</a>（含加强版 5000 步图）。
+      </figcaption>
+    </figure>
+    <table>
+      <thead>
+        <tr><th>现象</th><th>数值</th><th>含义</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>完全瞎猜 65 类</td>
+          <td>$\log 65 \approx 4.174$</td>
+          <td>随机基线</td>
+        </tr>
+        <tr>
+          <td>你的 step 0</td>
+          <td>loss ≈ 4.19</td>
+          <td>几乎等于随机猜</td>
+        </tr>
+        <tr>
+          <td>你的 step 1500</td>
+          <td>train ≈ 1.59 / val ≈ 1.78</td>
+          <td>平均 $P\approx e^{-1.59}\approx 20\%$（从 1.5% 涨上来）；尚未明显过拟合</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card tip">
+      <div class="label">记忆口诀</div>
+      <ul style="margin:0.4rem 0 0">
+        <li>loss 小 → 模型给正确答案的概率大 → 学得越好</li>
+        <li>loss 大 → 几乎没把概率分给正确答案</li>
+        <li>训练目标 = 最小化平均 Cross-Entropy（最大似然）</li>
+        <li>只看 train 下降不够 → 还要盯 val（见第5章）</li>
+      </ul>
+    </div>
+
+    <h2 id="s1-5">1.5 每个训练 step 在优化什么</h2>
+    <p>你的配置：<code>batch_size=64</code>，<code>block_size=256</code></p>
+    <div class="math">$$64 \times 256 = 16{,}384$$</div>
+    <p><strong>每一步同时做 16384 次「猜下一个字符」</strong>，把这些位置的 CE 平均起来，就是终端里打印的 <code>loss</code>。然后：算梯度 → AdamW 更新参数 → 下一轮再猜。</p>
+
+<h2 id="s1-expand">1.6 扩展：从小模型到大模型，不变的是什么</h2>
+<p>字符级莎士比亚和千亿参数大模型，表面上差很远，但训练目标同构：</p>
+<ul>
+  <li>都在最大化「下一个 token」的似然（等价于最小化交叉熵 / NLL）</li>
+  <li>都把离散符号变成向量，再经深层网络打出词表上的 logits</li>
+  <li>评估时同样要同时看 train 与 held-out（val/test）曲线</li>
+</ul>
+<p>差别主要在：词表更大（子词 BPE）、上下文更长、层数与宽度更大、数据与算力工程更复杂。先把 NanoGPT 这条最小闭环吃透，再看大模型论文时会轻松很多。</p>
+
+<h2 id="s1-quiz">自测题</h2>
+    <div class="quiz">
+      <p><strong>Q1：</strong>为什么 step 0 的 loss 会接近 4.17？</p>
+      <p class="muted">参考答案：刚开始参数接近随机，Softmax 后各字符概率约 $1/65$，故 loss ≈ $\log 65$。</p>
+      <p><strong>Q2：</strong>若正确答案概率是 0.5，这一位的 loss 是多少？</p>
+      <p class="muted">参考答案：$-\log(0.5)\approx 0.693$（概率已就绪，不再 Softmax）。</p>
+    </div>
+
+        </div>
+        <div class="llm-footer-nav">
+          <a href="index.html">← 目录</a>
+          <a href="ch02.html">模型前向结构 →</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</body>
+</html>
