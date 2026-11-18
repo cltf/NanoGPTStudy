@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>大模型训练过程 · 简明版</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .topic-hero {
+      margin: 0 0 1.5rem;
+      padding: 1.25rem 1.35rem 1.35rem;
+      border-radius: 16px;
+      background:
+        linear-gradient(135deg, rgba(15,118,110,0.10), transparent 55%),
+        #fff;
+      border: 1px solid var(--line);
+    }
+    .topic-hero h1 {
+      margin: 0.3rem 0 0.45rem;
+      font-family: var(--font-display);
+      font-size: clamp(1.65rem, 3.2vw, 2.2rem);
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+    }
+    .topic-hero .one-liner { margin: 0; font-size: 1.05rem; }
+    .loop {
+      margin: 1rem 0 1.35rem;
+      padding: 0;
+      list-style: none;
+      counter-reset: step;
+    }
+    .loop li {
+      position: relative;
+      margin: 0 0 0.55rem;
+      padding: 0.8rem 1rem 0.8rem 2.9rem;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+    .loop li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0.8rem; top: 0.85rem;
+      width: 1.45rem; height: 1.45rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      display: grid; place-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .stage-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    @media (max-width: 720px) { .stage-row { grid-template-columns: 1fr; } }
+    .stage {
+      padding: 0.9rem 1rem;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-top: 3px solid var(--accent);
+    }
+    .stage h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+    .stage p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+    .mini { font-size: 0.92rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="topnav">
+      <a class="brand" href="index.html">大模型训练入门</a>
+      <div class="nav-links">
+        <a href="index.html">目录</a>
+        <a href="training-overview.html" class="active">训练过程</a>
+        <a href="ch01.html">第1章</a>
+        <a href="finetune/index.html">微调</a>
+      </div>
+    </nav>
+
+    <header class="topic-hero">
+      <span class="badge">简明总览</span>
+      <h1>大模型是怎么训练出来的</h1>
+      <p class="one-liner">一句话：给模型看海量文字，让它不断练习「<strong>猜下一个词</strong>」；猜错了就改参数，猜对了就强化——练到很会猜为止。</p>
+    </header>
+
+    <h2>1. 训练在干什么？</h2>
+    <p>不是背百科全书，而是学语言规律：</p>
+    <div class="example-box">
+      看见：<code>今天天气很</code><br>
+      目标：提高「晴 / 好 / …」这些合理续写的概率<br>
+      手段：用 <strong>loss（误差）</strong> 衡量猜得有多差，再反向改权重
+    </div>
+    <p class="mini">预训练阶段几乎都是这个目标（Next Token Prediction）。后面的微调，只是换数据、改行为，数学循环往往还是同一套。</p>
+
+    <h2>2. 一次训练迭代长什么样？</h2>
+    <p>可以当成工厂流水线，转了几十万圈：</p>
+    <ol class="loop">
+      <li><strong>取数据</strong>：从语料里拿出一小批文本，切成 token（词/字片）。</li>
+      <li><strong>正向计算</strong>：Embedding → 多层 Attention + MLP → 得到词表上每个词的分数（logits）。</li>
+      <li><strong>算 loss</strong>：和「真正的下一个 token」比，通常用交叉熵——错得越离谱，loss 越大。</li>
+      <li><strong>反向传播</strong>：算出每个参数该往哪边拧，才能让 loss 变小（梯度）。</li>
+      <li><strong>优化器更新</strong>：AdamW 等按学习率改一点点权重。然后回到第 1 步。</li>
+    </ol>
+    <div class="card tip">
+      <div class="label">你要盯的信号</div>
+      <p style="margin:0"><strong>train loss 下降</strong> = 在学训练集；再看 <strong>val loss</strong>：若训练降、验证升 → 可能过拟合。评测集比只看 loss 更接近「好不好用」。</p>
+    </div>
+
+    <h2 id="worked">3. 详细例子：用一句话走完一轮训练</h2>
+    <p>下面用<strong>玩具数字</strong>把一轮拆开。假装词表只有 4 个词，模型也很小——真实模型只是词表更大、层数更多，步骤一样。</p>
+
+    <h3>3.1 准备数据</h3>
+    <p>语料里有一句：</p>
+    <div class="example-box"><strong>小猫睡着了</strong></div>
+    <p>切成 token（这里按字）：</p>
+    <table>
+      <thead><tr><th>位置</th><th>0</th><th>1</th><th>2</th><th>3</th></tr></thead>
+      <tbody>
+        <tr><td>字</td><td>小</td><td>猫</td><td>睡</td><td>着了*</td></tr>
+        <tr><td>ID</td><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+      </tbody>
+    </table>
+    <p class="mini">*例子里把「着了」当成一个 token，方便只算 4 个词。真实分词更碎。</p>
+    <p>训练时的游戏规则：</p>
+    <ul>
+      <li>看见前面的字 → 猜<strong>下一个</strong>字</li>
+      <li>比如看见「小」「猫」→ 正确答案应该是「睡」</li>
+      <li>看见「小」「猫」「睡」→ 正确答案应该是「着了」</li>
+    </ul>
+
+    <h3>3.2 只盯一个位置：猜「睡」</h3>
+    <p>输入：已看到 <code>小 猫</code>（ID: 0, 1）<br>
+    标准答案：下一个必须是 <code>睡</code>（ID: 2）</p>
+
+    <p><strong>① 正向：模型给出 4 个词的「原始分数」logits</strong>（未训练好时胡猜）：</p>
+    <table>
+      <thead><tr><th>候选词</th><th>小</th><th>猫</th><th>睡</th><th>着了</th></tr></thead>
+      <tbody>
+        <tr><td>logit</td><td>1.0</td><td>2.0</td><td>0.5</td><td>0.2</td></tr>
+      </tbody>
+    </table>
+    <p>模型当前更偏向猜「猫」（2.0 最高），但正确答案是「睡」——所以要挨罚。</p>
+
+    <p><strong>② Softmax：分数 → 概率</strong>（总和为 1）</p>
+    <p>粗算后大约是：</p>
+    <table>
+      <thead><tr><th>词</th><th>小</th><th>猫</th><th>睡</th><th>着了</th></tr></thead>
+      <tbody>
+        <tr><td>概率</td><td>0.22</td><td><strong>0.59</strong></td><td>0.13</td><td>0.06</td></tr>
+      </tbody>
+    </table>
+    <p>正确答案「睡」只有 <strong>13%</strong> 概率 → 猜得很差。</p>
+
+    <p><strong>③ 交叉熵 Loss（只看正确答案那个概率）</strong></p>
+    <div class="example-box">
+      loss ≈ −log(P(睡)) ≈ −log(0.13) ≈ <strong>2.04</strong><br>
+      概率越低，loss 越大；若 P(睡)=0.9，loss 会小很多。
+    </div>
+    <p>真实训练会对句子里<strong>每个位置</strong>都算一遍再平均；这里只演示一个位置。</p>
+
+    <p><strong>④ 反向传播：算出「该怎么改权重」</strong></p>
+    <p>自动微分会告诉每一层：为了让 P(睡) 变大、让 loss 变小，Embedding / Attention / MLP 里成千上万个小数该微调一点。<br>
+    你不必手算；框架（PyTorch / MLX）会算梯度。</p>
+
+    <p><strong>⑤ 优化器更新（如 AdamW）</strong></p>
+    <div class="example-box">
+      新权重 ≈ 旧权重 − 学习率 × 梯度方向<br>
+      学习率很小（如 1e-4），每次只拧一点点，避免一次改炸。
+    </div>
+
+    <h3>3.3 更新之后会发生什么？</h3>
+    <p>再跑同一输入，理想情况变成：</p>
+    <table>
+      <thead><tr><th>词</th><th>小</th><th>猫</th><th>睡</th><th>着了</th></tr></thead>
+      <tbody>
+        <tr><td>概率</td><td>0.10</td><td>0.15</td><td><strong>0.65</strong></td><td>0.10</td></tr>
+      </tbody>
+    </table>
+    <p>「睡」概率升高 → loss 变小。换下一批句子继续转这个圈，几万、几十万次后，模型就「会续写」了。</p>
+
+    <div class="card tip">
+      <div class="label">把例子放大到真实大模型</div>
+      <p style="margin:0">
+        词表：4 个 → 几万～十几万<br>
+        句子：1 句 → 海量网页/书/代码<br>
+        层数：玩具几层 → 几十层 Transformer<br>
+        <strong>每一步仍是：猜下一个 → 算 loss → 改权重</strong>
+      </p>
+    </div>
+
+    <h3>3.4 若这是 SFT 微调呢？</h3>
+    <p>循环一模一样，只是数据换成对话，例如：</p>
+    <div class="example-box">
+      user：什么是冒烟测试？<br>
+      assistant：【结论】……【步骤】……【注意】……
+    </div>
+    <p>模型要学会：在这种提问后面，下一个该接的 token 更像你的标准答（而不是胡聊）。常只更新 LoRA 小补丁，底座大部分冻结。</p>
+
+    <h2>4. 三大阶段（产品怎么炼成）</h2>
+    <div class="stage-row">
+      <div class="stage">
+        <h3>① 预训练 Pretrain</h3>
+        <p>海量网页/书/代码，学通用语言与知识。<br>贵、久、数据脏一点也能炼出「底座」。</p>
+      </div>
+      <div class="stage">
+        <h3>② 指令微调 SFT</h3>
+        <p>高质量「问题→标准答」对话，学会听指令、固定格式。<br>数据少而精，常只训 LoRA 小补丁。</p>
+      </div>
+      <div class="stage">
+        <h3>③ 对齐（可选）</h3>
+        <p>DPO / RLHF 等：用「好答 vs 坏答」偏好，压胡话、跟人类偏好。<br>通常在 SFT 之后。</p>
+      </div>
+    </div>
+    <p class="mini">你本地的 NanoGPT 笔记 ≈ ① 的微型版；<a href="finetune/index.html">微调目录</a> ≈ ②③ 的实操线。</p>
+
+    <h2>5. 一张图串起来</h2>
+    <div class="example-box">
+      <span class="caption">端到端</span>
+      原始文本 / 对话数据<br>
+      → Tokenize（变成 ID）<br>
+      → 模型前向（猜下一个）<br>
+      → Loss<br>
+      → 反向 + 优化器（改权重）<br>
+      → 存 checkpoint<br>
+      →（可选）SFT / DPO<br>
+      → 推理服务（vLLM 等）对外回答
+    </div>
+
+    <h2>6. 和推理的差别（别混）</h2>
+    <table>
+      <thead><tr><th></th><th>训练</th><th>推理</th></tr></thead>
+      <tbody>
+        <tr><td>目标</td><td>改权重，让 loss 降</td><td>权重基本不动，快速生成</td></tr>
+        <tr><td>算什么</td><td>正向 + 反向 + 优化器</td><td>主要正向（+ KV Cache）</td></tr>
+        <tr><td>数据</td><td>大批标注/语料</td><td>用户当前 prompt</td></tr>
+        <tr><td>你关心</td><td>loss、过拟合、数据质量</td><td>延迟、吞吐、显存</td></tr>
+      </tbody>
+    </table>
+
+    <h2>7. 记住这四句就够</h2>
+    <div class="card tip">
+      <div class="label">带走</div>
+      <ol style="margin:0;padding-left:1.2rem">
+        <li>训练 = 反复「猜下一个词 + 按误差改参数」。</li>
+        <li>一轮 = 数据 → 前向 → loss → 反向 → 更新。</li>
+        <li>产品路径 ≈ 预训练底座 → SFT 听话 →（可选）偏好对齐。</li>
+        <li>数据质量与评测，往往比盲目加参数更重要。</li>
+      </ol>
+    </div>
+
+    <p class="muted" style="margin-top:1.75rem">
+      展开读：<a href="ch01.html">第1章 Loss</a> · <a href="ch02.html">第2章 前向结构</a> · <a href="ch03.html">第3章 反向与 AdamW</a> · <a href="finetune/index.html">微调</a> · <a href="vllm.html">推理 vLLM</a>
+    </p>
+  </div>
+</body>
+</html>
